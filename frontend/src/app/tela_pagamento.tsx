@@ -14,6 +14,8 @@ export default function TelaPagamento() {
 
   useEffect(() => {
     if (status === 'concluido' && params.id_usuario) {
+      console.log("Iniciando monitoramento de pagamento em tempo real para usuário:", params.id_usuario);
+
       const subscription = supabase
         .channel('check_pagamento')
         .on(
@@ -25,8 +27,20 @@ export default function TelaPagamento() {
             filter: `id_usuario=eq.${params.id_usuario}`
           },
           (payload) => {
-            if (payload.new.status_pagamento === 'aprovado') {
+            const novoStatusPagamento = payload.new.status_pagamento;
+            console.log("Mudança detectada no status de pagamento:", novoStatusPagamento);
+
+            if (novoStatusPagamento === 'aprovado') {
               setPagamentoAprovado(true);
+            } 
+            else if (novoStatusPagamento === 'recusado' || novoStatusPagamento === 'rejeitado') {
+              // Se o administrador rejeitar o comprovante de pagamento
+              setStatus('upload');
+              setPagamentoAprovado(false);
+              Alert.alert(
+                "Pagamento Recusado",
+                "O comprovante PIX enviado foi recusado pela administração. Verifique os dados e envie a imagem correta do comprovante."
+              );
             }
           }
         )
@@ -36,7 +50,7 @@ export default function TelaPagamento() {
         supabase.removeChannel(subscription);
       };
     }
-  }, [status]);
+  }, [status, params.id_usuario]);
 
   const selecionarComprovante = async () => {
     try {
@@ -136,7 +150,7 @@ export default function TelaPagamento() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.stepText}>Passo 5/5</Text>
         <Text style={styles.mainTitle}>Efetue o pagamento e envie o comprovante</Text>
         <View style={styles.pixCard}>

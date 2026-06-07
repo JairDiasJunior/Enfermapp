@@ -1,9 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
 import { supabase } from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+
+// Paleta de cores oficial do ecossistema do app
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
 
 export default function AgendaProfissional() {
   const router = useRouter();
@@ -50,8 +58,6 @@ export default function AgendaProfissional() {
         `)
         .eq('id_profissional', profData.id_profissional)
         .eq('status', 'confirmado') 
-        // Lógica: Só mostra se (finalizado_cliente é falso OU finalizado_profissional é falso)
-        // Se ambos forem TRUE, o registro não vem na query.
         .or('finalizado_cliente.eq.false,finalizado_profissional.eq.false')
         .order('data_agendamento', { ascending: true });
 
@@ -60,6 +66,7 @@ export default function AgendaProfissional() {
 
     } catch (error) {
       console.error("Erro Agenda Profissional:", error.message);
+      Alert.alert("Erro", "Não foi possível carregar sua agenda.");
     } finally {
       setLoading(false);
     }
@@ -72,17 +79,27 @@ export default function AgendaProfissional() {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Agenda de Trabalho</Text>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* BOTÃO VOLTAR NO TOPO */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
+        </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>Agenda de Trabalho</Text>
+        <Text style={styles.subtitle}>Confira seus próximos atendimentos e serviços agendados.</Text>
+
         {loading ? (
-          <ActivityIndicator size="large" color="#00FFFF" style={{ marginTop: 50 }} />
+          <View style={styles.centerLoading}>
+            <ActivityIndicator size="large" color={VERDE_VIVO} />
+          </View>
         ) : agendamentos.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={80} color="#ccc" />
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="calendar-outline" size={48} color={TEXT_MID} />
+            </View>
             <Text style={styles.emptyText}>Você não possui atendimentos confirmados no momento.</Text>
           </View>
         ) : (
@@ -90,54 +107,216 @@ export default function AgendaProfissional() {
             <TouchableOpacity 
               key={item.id_agendamento} 
               style={styles.card}
+              activeOpacity={0.9}
               onPress={() => {
-                // NAVEGAÇÃO PARA DETALHES DO PROFISSIONAL
                 router.push({
-                  pathname: '/profissional/DetalhesAgendamento', // Ajuste o caminho se necessário
+                  pathname: '/profissional/DetalhesAgendamento',
                   params: { id: item.id_agendamento }
                 });
               }}
             >
+              {/* TOPO DO CARD */}
               <View style={styles.cardHeader}>
-                <Ionicons name="time" size={20} color="#00FFFF" />
-                <Text style={styles.horarioText}>{item.hora_agendamento}</Text>
-                <View style={[styles.badgeConfirmado, { backgroundColor: '#E0FFFF' }]}>
-                  <Text style={[styles.badgeText, { color: '#008B8B' }]}>CONFIRMADO</Text>
+                <View style={styles.timeBadge}>
+                  <Ionicons name="time" size={16} color={VERDE_VIVO} />
+                  <Text style={styles.horarioText}>{item.hora_agendamento}</Text>
+                </View>
+                <View style={styles.badgeConfirmado}>
+                  <View style={styles.dot} />
+                  <Text style={styles.badgeText}>CONFIRMADO</Text>
                 </View>
               </View>
 
+              {/* NOME DO SERVIÇO */}
               <Text style={styles.servicoText}>{item.servico?.nome_servico}</Text>
               
+              <View style={styles.divider} />
+
+              {/* DETALHES DO AGENDAMENTO */}
               <View style={styles.infoRow}>
-                <Ionicons name="person" size={16} color="#444" />
-                <Text style={styles.infoText}>Cliente: {item.cliente?.nome_usuario}</Text>
+                <Ionicons name="person-outline" size={16} color={TEXT_MID} />
+                <Text style={styles.infoText}>
+                  Cliente: <Text style={styles.infoValue}>{item.cliente?.nome_usuario}</Text>
+                </Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Ionicons name="location" size={16} color="#444" />
-                <Text style={styles.infoText} numberOfLines={1}>{item.endereco}</Text>
+                <Ionicons name="location-outline" size={16} color={TEXT_MID} />
+                <Text style={styles.infoText} numberOfLines={1}>
+                  Local: <Text style={styles.infoValue}>{item.endereco}</Text>
+                </Text>
               </View>
+
+              {/* RODAPÉ DO CARD / BOTÃO DE CLICK */}
+              <View style={styles.cardFooter}>
+                <Text style={styles.footerActionText}>Acessar painel do atendimento</Text>
+                <Ionicons name="chevron-forward" size={14} color={VERDE_VIVO} />
+              </View>
+
             </TouchableOpacity>
           ))
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8C8C8C' },
-  header: { paddingTop: 60, paddingBottom: 20, backgroundColor: '#D9D9D9', alignItems: 'center', elevation: 4 },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000' },
-  scrollContent: { padding: 20 },
-  card: { backgroundColor: '#FFF', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 3, borderLeftWidth: 5, borderLeftColor: '#00FFFF' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  horarioText: { fontSize: 18, fontWeight: 'bold', marginLeft: 5, flex: 1 },
-  badgeConfirmado: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5 },
-  badgeText: { fontSize: 10, fontWeight: 'bold' },
-  servicoText: { fontSize: 20, fontWeight: 'bold', color: '#008B8B', marginBottom: 8 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  infoText: { fontSize: 14, color: '#444', marginLeft: 8 },
-  emptyContainer: { alignItems: 'center', marginTop: 100 },
-  emptyText: { color: '#FFF', textAlign: 'center', fontSize: 16, marginTop: 15, paddingHorizontal: 40 }
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
+  },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingTop: 20,
+    paddingBottom: 40 
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 4,
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5,
+    marginBottom: 6
+  },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_MID,
+    marginBottom: 28,
+    lineHeight: 20
+  },
+  centerLoading: {
+    marginTop: 60,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  card: { 
+    backgroundColor: WHITE, 
+    borderRadius: 16, 
+    padding: 18, 
+    marginBottom: 16, 
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between',
+    alignItems: 'center', 
+    marginBottom: 14 
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: CREAM,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: BORDER
+  },
+  horarioText: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: PETROLEO
+  },
+  badgeConfirmado: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EBF7EE', 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
+    borderRadius: 20,
+    gap: 6
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: VERDE_VIVO
+  },
+  badgeText: { 
+    color: VERDE_VIVO, 
+    fontSize: 10, 
+    fontWeight: '700',
+    letterSpacing: 0.5
+  },
+  servicoText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: PETROLEO, 
+    marginBottom: 12 
+  },
+  divider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginBottom: 14
+  },
+  infoRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 6 
+  },
+  infoText: { 
+    fontSize: 13, 
+    color: TEXT_MID, 
+    marginLeft: 8,
+    flex: 1
+  },
+  infoValue: {
+    color: PETROLEO,
+    fontWeight: '500'
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 14,
+    gap: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F7FAF8'
+  },
+  footerActionText: {
+    fontSize: 12,
+    color: VERDE_VIVO,
+    fontWeight: '600'
+  },
+  emptyContainer: { 
+    alignItems: 'center', 
+    marginTop: 60,
+    paddingHorizontal: 20
+  },
+  emptyIconContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: WHITE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    marginBottom: 16
+  },
+  emptyText: { 
+    color: TEXT_MID, 
+    textAlign: 'center', 
+    fontSize: 14, 
+    lineHeight: 22
+  }
 });

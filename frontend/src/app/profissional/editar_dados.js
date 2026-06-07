@@ -1,212 +1,353 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
+import { supabase } from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../../services/api'; 
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+// Paleta de cores oficial do app
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
 
 export default function EditarDadosProfissional() {
   const router = useRouter();
-  const [carregando, setCarregando] = useState(false);
-  const [carregandoDados, setCarregandoDados] = useState(true);
-
+  
+  // Estados para controle de carregamento
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  
+  // Campos do formulário mapeados com o Banco de Dados
+  const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [pagamentoUsado, setPagamentoUsado] = useState(''); // 'Dinheiro', 'Cartão' ou 'Pix'
   const [descricao, setDescricao] = useState('');
-  const [pagamentos, setPagamentos] = useState([]);
-  const [semHorarioFixo, setSemHorarioFixo] = useState(false);
-  const [horaInicio, setHoraInicio] = useState('08:00');
-  const [horaFim, setHoraFim] = useState('18:00');
-  const [idP, setIdP] = useState(null);
+  
+  // Estados para a tabela 'horarios_profissional'
+  const [tipoHorario, setTipoHorario] = useState('definido'); // 'definido' ou 'flexivel'
+  const [horarioInicio, setHorarioInicio] = useState('');
+  const [horarioFim, setHorarioFim] = useState('');
 
-  useEffect(() => { fetchDadosIniciais(); }, []);
+  const [idUsuario, setIdUsuario] = useState(null);
+  const [idProfissional, setIdProfissional] = useState(null);
 
-  const fetchDadosIniciais = async () => {
+  // Aplica a máscara (00) 00000-0000 em tempo real
+  const aplicarMascaraTelefone = (text) => {
+    const apenasNumeros = text.replace(/\D/g, '');
+    let formatado = apenasNumeros;
+
+    if (formatado.length > 2) {
+      formatado = `(${formatado.substring(0, 2)}) ${formatado.substring(2)}`;
+    }
+    if (formatado.length > 10) {
+      formatado = `${formatado.substring(0, 10)}-${formatado.substring(10, 15)}`;
+    }
+    return formatado.substring(0, 15);
+  };
+
+  useEffect(() => {
+    carregarDadosPerfil();
+  }, []);
+
+  const carregarDadosPerfil = async () => {
     try {
-      const nomeSalvo = await AsyncStorage.getItem('nome_logado');
-      
-      const { data: prof, error } = await supabase
-        .from('profissional')
-        .select(`id_profissional, descricao, usuario!inner (id_usuario, telefone)`)
-        .eq('usuario.nome_usuario', nomeSalvo)
-        .single();
+      setLoading(true);
+      const idStorage = await AsyncStorage.getItem('id_usuario');
+      let usuario = null;
 
-      if (error || !prof) throw new Error("Perfil não encontrado");
-      
-      setIdP(prof.id_profissional);
-      setDescricao(prof.descricao || '');
-      setTelefone(prof.usuario?.telefone || '');
-
-      const { data: h } = await supabase.from('horarios_profissional').select('*').eq('id_profissional', prof.id_profissional).maybeSingle();
-      if (h) {
-        setSemHorarioFixo(h.tipo_horario === 'sem_horario_fixo');
-        if (h.horario_inicio) setHoraInicio(h.horario_inicio.slice(0, 5));
-        if (h.horario_fim) setHoraFim(h.horario_fim.slice(0, 5));
+      if (idStorage) {
+        const { data } = await supabase
+          .from('usuario')
+          .select('id_usuario, nome_usuario, telefone, pagamento_usado')
+          .eq('id_usuario', idStorage)
+          .single();
+        if (data) usuario = data;
       }
 
-      const { data: p } = await supabase.from('pagamentos_profissional').select('metodo').eq('id_profissional', prof.id_profissional);
-      setPagamentos(p?.map(item => item.metodo) || []);
-      
-    } catch (e) { 
-      console.error("Erro no fetch inicial:", e);
-    } finally { setCarregandoDados(false); }
+      if (!usuario) {
+        const nomeLogado = await AsyncStorage.getItem('nome_logado');
+        const { data } = await supabase
+          .from('usuario')
+          .select('id_usuario, nome_usuario, telefone, pagamento_usado')
+          .eq('nome_usuario', nomeLogado)
+          .single();
+        if (!data) throw new Error("Usuário não encontrado.");
+        usuario = data;
+      }
+
+      // Preenche dados da tabela 'usuario'
+      setIdUsuario(usuario.id_usuario);
+      setNome(usuario.nome_usuario);
+      setTelefone(aplicarMascaraTelefone(usuario.telefone || ''));
+      setPagamentoUsado(usuario.pagamento_usado || '');
+      await AsyncStorage.setItem('id_usuario', String(usuario.id_usuario));
+
+      // Busca dados da tabela 'profissional'
+      const { data: profesional } = await supabase
+        .from('profissional')
+        .select('id_profissional, descricao')
+        .eq('id_usuario', usuario.id_usuario)
+        .maybeSingle();
+
+      if (profesional) {
+        setIdProfissional(profesional.id_profissional);
+        setDescricao(profesional.descricao || '');
+
+        // Busca dados da tabela 'horarios_profissional'
+        const { data: horario } = await supabase
+          .from('horarios_profissional')
+          .select('tipo_horario, horario_inicio, horario_fim')
+          .eq('id_profissional', profesional.id_profissional)
+          .maybeSingle();
+
+        if (horario) {
+          setTipoHorario(horario.tipo_horario || 'definido');
+          if (horario.tipo_horario === 'flexivel') {
+            setHorarioInicio('');
+            setHorarioFim('');
+          } else {
+            setHorarioInicio(horario.horario_inicio || '');
+            setHorarioFim(horario.horario_fim || '');
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erro", "Não foi possível carregar as informações.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const salvarAlteracoes = async () => {
-    if (!idP) {
-      Alert.alert("Erro", "Sessão inválida.");
+    if (!nome.trim() || !telefone.trim()) {
+      Alert.alert("Atenção", "Os campos Nome e Telefone são obrigatórios.");
       return;
     }
-    
-    setCarregando(true);
+
+    if (!idUsuario) {
+      Alert.alert("Erro", "ID do usuário não encontrado. Recarregue a página.");
+      return;
+    }
+
     try {
-      const nomeSalvo = await AsyncStorage.getItem('nome_logado');
-      
-      // 1. Telefone
-      await supabase.from('usuario').update({ telefone }).eq('nome_usuario', nomeSalvo);
-      
-      // 2. Descrição
-      await supabase.from('profissional').update({ descricao: descricao }).eq('id_profissional', idP);
+      setSalvando(true);
 
-      // 3. Horários (Upsert funcional com a nova constraint do banco)
-      const { error: hError } = await supabase.from('horarios_profissional').upsert({
-        id_profissional: idP,
-        tipo_horario: semHorarioFixo ? 'sem_horario_fixo' : 'definido',
-        horario_inicio: semHorarioFixo ? '00:00' : horaInicio,
-        horario_fim: semHorarioFixo ? '23:59' : horaFim
-      }, { onConflict: 'id_profissional' });
+      // 1. Salva na tabela 'usuario' (telefone e pagamento_usado inclusos aqui)
+      const { error: userError } = await supabase
+        .from('usuario')
+        .update({ 
+          nome_usuario: nome, 
+          telefone: telefone, 
+          pagamento_usado: pagamentoUsado 
+        })
+        .eq('id_usuario', idUsuario);
 
-      if (hError) throw hError;
-
-      // 4. Pagamentos (Enviando em minúsculo para bater com o ENUM do banco)
-      await supabase.from('pagamentos_profissional').delete().eq('id_profissional', idP);
-      if (pagamentos.length > 0) {
-        const insertPags = pagamentos.map(m => ({ id_profissional: idP, metodo: m.toLowerCase() }));
-        const { error: pError } = await supabase.from('pagamentos_profissional').insert(insertPags);
-        if (pError) throw pError;
+      if (userError) {
+        console.error("Erro na tabela usuario:", userError);
+        throw new Error(`Erro na tabela Usuário: ${userError.message}`);
       }
 
-      Alert.alert("Sucesso", "Perfil atualizado!", [{ text: "OK", onPress: () => router.back() }]);
-    } catch (e) { 
-      console.error("Erro ao salvar:", e);
-      Alert.alert("Erro ao salvar", e.message); 
-    } finally { setCarregando(false); }
+      // 2. Salva na tabela 'profissional' (descricao inclusa aqui)
+      const { error: profError } = await supabase
+        .from('profissional')
+        .update({ descricao: descricao })
+        .eq('id_usuario', idUsuario);
+
+      if (profError) {
+        console.error("Erro na tabela profissional:", profError);
+        throw new Error(`Erro na tabela Profissional: ${profError.message}`);
+      }
+
+      // Define as strings de horário com base na regra de negócio escolhida
+      const inicioFinal = tipoHorario === 'flexivel' ? '00:00' : horarioInicio;
+      const fimFinal = tipoHorario === 'flexivel' ? '23:59' : horarioFim;
+
+      // 3. Salva na tabela 'horarios_profissional' via Upsert
+      let profissionalIdAtual = idProfissional;
+      
+      // Dupla checagem caso o estado tenha se perdido
+      if (!profissionalIdAtual) {
+        const { data: profDados } = await supabase
+          .from('profissional')
+          .select('id_profissional')
+          .eq('id_usuario', idUsuario)
+          .single();
+        
+        if (profDados) {
+          profissionalIdAtual = profDados.id_profissional;
+          setIdProfissional(profDados.id_profissional);
+        }
+      }
+
+      if (profissionalIdAtual) {
+        const { error: horError } = await supabase
+          .from('horarios_profissional')
+          .upsert({
+            id_profissional: profissionalIdAtual,
+            tipo_horario: tipoHorario,
+            horario_inicio: inicioFinal,
+            horario_fim: fimFinal
+          }, { onConflict: 'id_profissional' });
+
+        if (horError) {
+          console.error("Erro na tabela horarios:", horError);
+          throw new Error(`Erro na tabela Horários: ${horError.message}`);
+        }
+      } else {
+        throw new Error("Não foi possível vincular os horários porque o ID do profissional não foi mapeado.");
+      }
+
+      // Sincroniza o storage local para evitar dessincronização de telas
+      await AsyncStorage.setItem('nome_logado', nome);
+      
+      Alert.alert("Sucesso", "Perfil atualizado com sucesso!", [
+        { text: "OK", onPress: () => router.back() }
+      ]);
+
+    } catch (error) {
+      console.error("Erro completo ao salvar:", error);
+      Alert.alert("Falha ao Salvar", error.message || "Erro desconhecido.");
+    } finally {
+      setSalvando(false);
+    }
   };
 
-  const mascaraTelefone = (v) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").substring(0, 15);
-  const mascaraHora = (v) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "$1:$2").substring(0, 5);
-
-  if (carregandoDados) return <View style={styles.centered}><ActivityIndicator size="large" color="#0077c2" /></View>;
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.stepHeader}>EDITAR PERFIL</Text>
-        
-        <View style={styles.section}>
-          <Text style={styles.label}>Telefone WhatsApp</Text>
-          <TextInput 
-            style={styles.timeInput} 
-            value={telefone} 
-            onChangeText={(t) => setTelefone(mascaraTelefone(t))} 
-            keyboardType="phone-pad" 
-          />
-        </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Editar Perfil</Text>
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Sua Descrição/Bio</Text>
-          <TextInput 
-            style={styles.inputBio} 
-            multiline 
-            value={descricao} 
-            onChangeText={setDescricao} 
-            placeholder="Descreva seu trabalho..." 
-          />
+      {loading ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={VERDE_VIVO} />
         </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Formas de Pagamento</Text>
-          <View style={styles.row}>
-            {['pix', 'dinheiro', 'cartao'].map((m) => (
-              <TouchableOpacity 
-                key={m} 
-                style={[styles.chip, pagamentos.includes(m) && styles.chipActive]} 
-                onPress={() => {
-                  if (pagamentos.includes(m)) setPagamentos(pagamentos.filter(i => i !== m));
-                  else setPagamentos([...pagamentos, m]);
-                }}
-              >
-                <Text style={[styles.chipText, pagamentos.includes(m) && styles.chipTextActive]}>
-                  {m === 'cartao' ? 'CARTÃO' : m.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Disponibilidade</Text>
-          <TouchableOpacity 
-            style={[styles.horarioCard, semHorarioFixo && styles.horarioCardActive]} 
-            onPress={() => setSemHorarioFixo(!semHorarioFixo)}
-          >
-            <View style={[styles.circle, semHorarioFixo && styles.circleActive]} />
-            <Text style={styles.itemText}>Atendimento 24h / Sem horário fixo</Text>
-          </TouchableOpacity>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
-          {!semHorarioFixo && (
-            <View style={styles.timePickerContainer}>
-              <View style={styles.timeBox}>
-                <Text style={styles.timeLabel}>Início:</Text>
-                <TextInput 
-                  style={styles.timeInput} 
-                  value={horaInicio} 
-                  onChangeText={(t) => setHoraInicio(mascaraHora(t))} 
-                  keyboardType="numeric" 
-                  maxLength={5} 
-                />
+          {/* NOME COMPLETO */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Nome Completo</Text>
+            <TextInput style={styles.input} value={nome} onChangeText={setNome} />
+          </View>
+
+          {/* TELEFONE COM MÁSCARA */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Telefone de Contato</Text>
+            <TextInput 
+              style={styles.input} 
+              value={telefone} 
+              keyboardType="phone-pad"
+              placeholder="(00) 00000-0000"
+              onChangeText={(t) => setTelefone(aplicarMascaraTelefone(t))} 
+            />
+          </View>
+
+          {/* FORMA DE PAGAMENTO RECEBIDO */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Forma de Recebimento Principal</Text>
+            <View style={styles.rowButtons}>
+              {['Dinheiro', 'Cartão', 'Pix'].map((tipo) => (
+                <TouchableOpacity
+                  key={tipo}
+                  style={[styles.selectorButton, pagamentoUsado === tipo && styles.selectorButtonActive]}
+                  onPress={() => setPagamentoUsado(tipo)}
+                >
+                  <Text style={[styles.selectorText, pagamentoUsado === tipo && styles.selectorTextActive]}>{tipo}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* DESCRIÇÃO / BIOGRAFIA */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Descrição / Biografia Profissional</Text>
+            <TextInput 
+              style={[styles.input, styles.textArea]} 
+              value={descricao} 
+              onChangeText={setDescricao} 
+              multiline 
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholder="Fale um pouco sobre seu trabalho..."
+            />
+          </View>
+
+          {/* CONFIGURAÇÃO DE HORÁRIO */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Tipo de Horário de Atendimento</Text>
+            <View style={styles.rowButtons}>
+              <TouchableOpacity
+                style={[styles.selectorButton, tipoHorario === 'definido' && styles.selectorButtonActive]}
+                onPress={() => setTipoHorario('definido')}
+              >
+                <Text style={[styles.selectorText, tipoHorario === 'definido' && styles.selectorTextActive]}>Hora Fixa</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.selectorButton, tipoHorario === 'flexivel' && styles.selectorButtonActive]}
+                onPress={() => setTipoHorario('flexivel')}
+              >
+                <Text style={[styles.selectorText, tipoHorario === 'flexivel' && styles.selectorTextActive]}>Sem hora fixa</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {tipoHorario === 'definido' && (
+            <View style={styles.rowHorarios}>
+              <View style={[styles.formGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Início</Text>
+                <TextInput style={styles.input} value={horarioInicio} onChangeText={setHorarioInicio} placeholder="08:00" maxLength={5} />
               </View>
-              <View style={styles.timeBox}>
-                <Text style={styles.timeLabel}>Fim:</Text>
-                <TextInput 
-                  style={styles.timeInput} 
-                  value={horaFim} 
-                  onChangeText={(t) => setHoraFim(mascaraHora(t))} 
-                  keyboardType="numeric" 
-                  maxLength={5} 
-                />
+              <View style={[styles.formGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Fim</Text>
+                <TextInput style={styles.input} value={horarioFim} onChangeText={setHorarioFim} placeholder="18:00" maxLength={5} />
               </View>
             </View>
           )}
-        </View>
 
-        <TouchableOpacity style={styles.btnFinalizar} onPress={salvarAlteracoes} disabled={carregando}>
-          {carregando ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>SALVAR ALTERAÇÕES</Text>}
-        </TouchableOpacity>
-      </ScrollView>
+          {/* BOTÃO DE SALVAR */}
+          <TouchableOpacity 
+            style={[styles.saveButton, salvando && styles.saveButtonDisabled]}
+            onPress={salvarAlteracoes}
+            disabled={salvando}
+          >
+            {salvando ? <ActivityIndicator size="small" color={WHITE} /> : <Text style={styles.saveButtonText}>Salvar Alterações</Text>}
+          </TouchableOpacity>
+
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  container: { padding: 20 },
-  stepHeader: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 25, color: '#0077c2' },
-  section: { marginBottom: 25 },
-  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
-  inputBio: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 15, height: 100, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  chip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ddd' },
-  chipActive: { backgroundColor: '#0077c2', borderColor: '#0077c2' },
-  chipText: { color: '#000' },
-  chipTextActive: { color: '#fff', fontWeight: 'bold' },
-  horarioCard: { flexDirection: 'row', alignItems: 'center', padding: 15, borderWidth: 1, borderColor: '#ddd', borderRadius: 10 },
-  circle: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#999', marginRight: 10 },
-  circleActive: { backgroundColor: '#00ff00', borderColor: '#000' },
-  itemText: { fontSize: 16 },
-  timePickerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
-  timeBox: { width: '45%' },
-  timeLabel: { fontSize: 14, marginBottom: 5 },
-  timeInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, textAlign: 'center', fontSize: 16 },
-  btnFinalizar: { backgroundColor: '#0077c2', height: 50, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 10, marginBottom: 30 },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  container: { flex: 1, backgroundColor: CREAM },
+  header: { paddingTop: 60, paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderColor: BORDER, backgroundColor: CREAM },
+  backButton: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 4 },
+  backButtonText: { color: PETROLEO, fontSize: 15, fontWeight: '500' },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: PETROLEO },
+  centerLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
+  formGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '700', color: PETROLEO, marginBottom: 8 },
+  input: { backgroundColor: WHITE, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 16, height: 54, fontSize: 15, color: PETROLEO, fontWeight: '500' },
+  textArea: { height: 100, paddingTop: 14 },
+  rowButtons: { flexDirection: 'row', gap: 10 },
+  selectorButton: { flex: 1, height: 48, backgroundColor: WHITE, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  selectorButtonActive: { backgroundColor: VERDE_VIVO, borderColor: VERDE_VIVO },
+  selectorText: { fontSize: 14, fontWeight: '600', color: TEXT_MID },
+  selectorTextActive: { color: WHITE },
+  rowHorarios: { flexDirection: 'row', gap: 16 },
+  saveButton: { backgroundColor: VERDE_VIVO, borderRadius: 16, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  saveButtonDisabled: { opacity: 0.7 },
+  saveButtonText: { color: WHITE, fontSize: 16, fontWeight: '700' }
 });

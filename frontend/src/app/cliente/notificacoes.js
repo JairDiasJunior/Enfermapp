@@ -1,23 +1,37 @@
+//notificacoes_cliente
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../services/api';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Paleta de cores premium unificada para o app
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
+const RED = '#C94A4A';
+const GOLD = '#E6A119';
 
 export default function NotificacoesCliente() {
   const router = useRouter();
   const [notificacoes, setNotificacoes] = useState([]);
   const [perfil, setPerfil] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Estado para controlar qual ID de intercorrência está com o mouse em cima (Hover)
+  const [hoveredId, setHoveredId] = useState(null);
 
   const buscarDados = async () => {
     try {
       setLoading(true);
       const nomeLogado = await AsyncStorage.getItem('nome_logado');
 
-      // 1. Pegar o Perfil do cliente logado (para ver avisos/advertências)
-      const { data: user, error: userError } = await supabase
+      // 1. Pegar o Perfil do cliente logado
+      const { data: user } = await supabase
         .from('usuario')
         .select('id_usuario, nome_usuario, advertencias')
         .eq('nome_usuario', nomeLogado)
@@ -37,7 +51,6 @@ export default function NotificacoesCliente() {
           .eq('id_cliente', user.id_usuario);
 
         // 3. Buscar Intercorrências (Disputas)
-        // Buscamos onde o cliente abriu OU onde o agendamento pertence a ele
         const { data: disputas } = await supabase
           .from('intercorrencia')
           .select(`
@@ -55,7 +68,7 @@ export default function NotificacoesCliente() {
           ...(disputas || []).map(d => ({ ...d, tipo: 'disputa' }))
         ];
 
-        // Ordenar por ID ou data (mais recentes primeiro)
+        // Ordenar por ID mais recente primeiro
         listaNotificacoes.sort((a, b) => (b.id_agendamento || b.id_intercorrencia) - (a.id_agendamento || a.id_intercorrencia));
         
         setNotificacoes(listaNotificacoes);
@@ -78,55 +91,93 @@ export default function NotificacoesCliente() {
     if (item.tipo === 'disputa') {
       const contraMim = item.aberta_por === 'profissional';
       const resolvida = item.status === 'resolvido';
+      
+      // Verifica se este item específico está sofrendo Hover do mouse
+      const isHovered = hoveredId === item.id_intercorrencia;
 
       return (
         <TouchableOpacity 
-          style={[styles.cardDisputa, resolvida && styles.cardResolvido]}
+          style={[
+            styles.cardBase, 
+            styles.cardClicavel, 
+            resolvida && styles.cardResolvido,
+            isHovered && styles.cardHoverEffect // Aplica o estilo de hover dinamicamente
+          ]}
           onPress={() => router.push({ pathname: '/cliente/detalhes_intercorrencia_view', params: { id: item.id_agendamento } })}
+          activeOpacity={0.7}
+          // Eventos de mouse compatíveis com Web/Emuladores
+          onMouseEnter={() => setHoveredId(item.id_intercorrencia)}
+          onMouseLeave={() => setHoveredId(null)}
         >
-          <Ionicons name={resolvida ? "checkmark-done-circle" : "warning"} size={24} color={resolvida ? "green" : "#f44336"} />
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.cardTitle}>
-              {resolvida ? "Disputa Encerrada" : (contraMim ? "Disputa contra você!" : "Sua disputa em análise")}
-            </Text>
-            <Text style={styles.cardSub}>
+          <View style={[styles.iconWrapper, { backgroundColor: resolvida ? '#EBF7EE' : '#FDF2F2' }]}>
+            <Ionicons name={resolvida ? "checkmark-done" : "alert-circle-outline"} size={20} color={resolvida ? VERDE_VIVO : RED} />
+          </View>
+          
+          <View style={styles.cardTextContent}>
+            <View style={styles.badgeRow}>
+              <Text style={[styles.cardTitle, { color: resolvida ? VERDE_VIVO : RED }]}>
+                {resolvida ? "Disputa Encerrada" : (contraMim ? "Disputa Contra Você" : "Sua Disputa em Análise")}
+              </Text>
+              <View style={[styles.tagBadge, { backgroundColor: resolvida ? '#EBF7EE' : '#FDF2F2' }]}>
+                <Text style={[styles.tagBadgeText, { color: resolvida ? VERDE_VIVO : RED }]}>Ver Caso</Text>
+              </View>
+            </View>
+            <Text style={styles.cardSub} numberOfLines={2}>
               {resolvida 
-                ? `O administrador decidiu: ${item.veredito || 'Caso encerrado.'}` 
-                : `Sobre o serviço de ${item.agendamentos?.servico?.nome_servico}.`}
+                ? `Decisão: ${item.veredito || 'Caso encerrado pela moderação.'}` 
+                : `Sobre o procedimento de ${item.agendamentos?.servico?.nome_servico}.`}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={18} color={PETROLEO} style={styles.chevronIcon} />
         </TouchableOpacity>
       );
     }
 
-    // --- CASOS DE AGENDAMENTO (CÓDIGO ORIGINAL) ---
+    // --- CASOS DE AGENDAMENTO ---
     if (item.status === 'pendente') {
       return (
-        <View style={styles.cardPendente}>
-          <Text style={[styles.cardTitle, { color: '#856404' }]}>Solicitação em Análise</Text>
-          <Text style={styles.cardSub}>
-            Sua solicitação de <Text style={styles.bold}>{item.servico?.nome_servico}</Text> aguarda confirmação.
-          </Text>
+        <View style={styles.cardBase}>
+          <View style={[styles.iconWrapper, { backgroundColor: '#FFFDE7' }]}>
+            <Ionicons name="time-outline" size={20} color={GOLD} />
+          </View>
+          <View style={styles.cardTextContent}>
+            <Text style={[styles.cardTitle, { color: GOLD }]}>Solicitação em Análise</Text>
+            <Text style={styles.cardSub}>
+              Seu agendamento para <Text style={styles.bold}>{item.servico?.nome_servico}</Text> aguarda confirmação do profissional.
+            </Text>
+          </View>
         </View>
       );
     }
 
     if (item.status === 'confirmado') {
       return (
-        <View style={[styles.cardInformativo, { borderLeftColor: '#28a745', borderLeftWidth: 5 }]}>
-          <Text style={[styles.cardTitle, { color: '#155724' }]}>Atendimento Confirmado!</Text>
-          <Text style={styles.cardSub}>
-            O profissional <Text style={styles.bold}>{item.profissional?.usuario?.nome_usuario}</Text> aceitou seu pedido.
-          </Text>
+        <View style={styles.cardBase}>
+          <View style={[styles.iconWrapper, { backgroundColor: '#EBF7EE' }]}>
+            <Ionicons name="calendar-outline" size={20} color={VERDE_VIVO} />
+          </View>
+          <View style={styles.cardTextContent}>
+            <Text style={[styles.cardTitle, { color: VERDE_VIVO }]}>Atendimento Confirmado!</Text>
+            <Text style={styles.cardSub}>
+              O profissional <Text style={styles.bold}>{item.profissional?.usuario?.nome_usuario}</Text> aceitou sua solicitação.
+            </Text>
+          </View>
         </View>
       );
     }
 
     if (item.status === 'cancelado') {
       return (
-        <View style={[styles.cardInformativo, { borderLeftColor: '#dc3545', borderLeftWidth: 5 }]}>
-          <Text style={[styles.cardTitle, { color: '#721c24' }]}>Solicitação Recusada</Text>
-          <Text style={styles.cardSub}>Infelizmente o profissional recusou o serviço de {item.servico?.nome_servico}.</Text>
+        <View style={styles.cardBase}>
+          <View style={[styles.iconWrapper, { backgroundColor: '#FDF2F2' }]}>
+            <Ionicons name="close-circle-outline" size={20} color={RED} />
+          </View>
+          <View style={styles.cardTextContent}>
+            <Text style={[styles.cardTitle, { color: PETROLEO }]}>Solicitação Recusada</Text>
+            <Text style={styles.cardSub}>
+              O profissional recusou ou cancelou o agendamento de <Text style={styles.bold}>{item.servico?.nome_servico}</Text>.
+            </Text>
+          </View>
         </View>
       );
     }
@@ -134,34 +185,44 @@ export default function NotificacoesCliente() {
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close-outline" size={40} color="red" />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Minhas Notificações</Text>
       </View>
 
-      {/* Banner de Aviso de Advertências / Suspensão */}
+      {/* BANNER DE ADVERTÊNCIA */}
       {perfil?.advertencias > 0 && (
         <View style={[styles.bannerAviso, perfil.advertencias >= 3 ? styles.bannerSuspenso : null]}>
-          <Ionicons name="alert-circle" size={24} color="#fff" />
+          <Ionicons name="warning-outline" size={20} color={WHITE} />
           <Text style={styles.bannerText}>
             {perfil.advertencias >= 3 
-              ? "SUA CONTA FOI SUSPENSA POR EXCESSO DE AVISOS." 
-              : `Atenção: Você possui ${perfil.advertencias} aviso(s). Com 3 avisos sua conta será deletada.`}
+              ? "Sua conta foi suspensa temporariamente por excesso de avisos da moderação." 
+              : `Atenção: Você possui ${perfil.advertencias} aviso(s) formal(ais). Evite quebras de termos para não perder o acesso.`}
           </Text>
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#fff" style={{ marginTop: 20 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={VERDE_VIVO} />
+        </View>
       ) : (
         <FlatList
           data={notificacoes}
           keyExtractor={(item, index) => index.toString()}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 15 }}
-          ListEmptyComponent={<Text style={styles.vazio}>Você não tem notificações.</Text>}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.vazioContainer}>
+              <Ionicons name="mail-open-outline" size={44} color={TEXT_MID} />
+              <Text style={styles.vazio}>Tudo limpo por aqui! Você não tem novas notificações.</Text>
+            </View>
+          }
         />
       )}
     </View>
@@ -169,23 +230,153 @@ export default function NotificacoesCliente() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8C8C8C' },
-  header: { paddingTop: 50, backgroundColor: '#D9D9D9', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 10 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 10 },
-  
-  // Estilo Disputas
-  cardDisputa: { backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 15, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 8, borderLeftColor: '#f44336' },
-  cardResolvido: { borderLeftColor: 'green', backgroundColor: '#e8f5e9' },
-  
-  // Banner Avisos
-  bannerAviso: { backgroundColor: '#ff9800', padding: 15, flexDirection: 'row', alignItems: 'center', margin: 10, borderRadius: 8 },
-  bannerSuspenso: { backgroundColor: '#b71c1c' },
-  bannerText: { color: '#fff', fontWeight: 'bold', flex: 1, marginLeft: 10 },
-
-  cardPendente: { backgroundColor: '#fff3cd', padding: 15, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#ffeeba' },
-  cardInformativo: { backgroundColor: '#D9D9D9', padding: 15, borderRadius: 5, marginBottom: 15 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#000' },
-  cardSub: { fontSize: 14, color: '#333', marginTop: 3 },
-  bold: { fontWeight: 'bold' },
-  vazio: { textAlign: 'center', marginTop: 50, fontSize: 16, color: '#fff' }
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
+  },
+  header: { 
+    paddingTop: 60, 
+    paddingHorizontal: 24, 
+    paddingBottom: 16,
+    backgroundColor: CREAM,
+    borderBottomWidth: 1,
+    borderColor: BORDER
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 4
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 15,
+    fontWeight: '500'
+  },
+  headerTitle: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5
+  },
+  listContent: { 
+    padding: 24 
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  cardBase: { 
+    backgroundColor: WHITE, 
+    padding: 16, 
+    borderRadius: 16, 
+    marginBottom: 14, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    gap: 12,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 2
+  },
+  cardClicavel: {
+    borderColor: BORDER,
+    shadowOpacity: 0.05,
+    elevation: 3,
+  },
+  // ESTILO DO EFEITO HOVER (PASSAR O MOUSE)
+  cardHoverEffect: {
+    backgroundColor: '#F5F7F6', // Escurece levemente o fundo branco original
+    borderColor: TEXT_MID,      // Deixa a borda com mais destaque usando a cor média
+    transform: [{ scale: 1.01 }] // Dá um micro-zoom elegante (disponível em ambientes com suporte a animação/web)
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingRight: 4
+  },
+  tagBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  tagBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3
+  },
+  iconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  cardTextContent: {
+    flex: 1
+  },
+  cardResolvido: { 
+    backgroundColor: WHITE
+  },
+  chevronIcon: {
+    marginLeft: 4,
+    opacity: 0.8
+  },
+  bannerAviso: { 
+    backgroundColor: GOLD, 
+    paddingVertical: 12,
+    paddingHorizontal: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginHorizontal: 24,
+    marginTop: 16, 
+    borderRadius: 12,
+    gap: 10
+  },
+  bannerSuspenso: { 
+    backgroundColor: RED 
+  },
+  bannerText: { 
+    color: WHITE, 
+    fontWeight: '600', 
+    flex: 1, 
+    fontSize: 13,
+    lineHeight: 18
+  },
+  cardTitle: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: PETROLEO,
+  },
+  cardSub: { 
+    fontSize: 13, 
+    color: TEXT_MID, 
+    lineHeight: 18,
+    fontWeight: '500'
+  },
+  bold: { 
+    fontWeight: '700',
+    color: PETROLEO
+  },
+  vazioContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 80,
+    gap: 12,
+    paddingHorizontal: 20
+  },
+  vazio: { 
+    textAlign: 'center', 
+    fontSize: 15, 
+    color: TEXT_MID,
+    lineHeight: 22,
+    fontWeight: '500'
+  }
 });

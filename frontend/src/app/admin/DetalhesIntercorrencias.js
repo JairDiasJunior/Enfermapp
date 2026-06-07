@@ -47,7 +47,7 @@ export default function DetalhesIntercorrenciasAdmin() {
     try {
       setLoading(true);
       
-      // 1. Atualiza contador de avisos (ajuste a tabela conforme seu banco, 'perfis' ou 'usuario')
+      // 1. Atualiza contador de avisos na tabela de usuários
       await supabase
         .from('usuario')
         .update({ advertencias: novasAdvertencias })
@@ -74,6 +74,17 @@ export default function DetalhesIntercorrenciasAdmin() {
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#000" /></View>;
 
+  // Variáveis auxiliares para descobrir quem é o reclamante com base no "aberta_por"
+  const ehClienteReclamante = data.aberta_por === 'cliente';
+  
+  const nomeReclamante = ehClienteReclamante 
+    ? data.agendamentos.cliente.nome_usuario 
+    : data.agendamentos.profissional.usuario.nome_usuario;
+
+  const nomeDefesa = ehClienteReclamante 
+    ? data.agendamentos.profissional.usuario.nome_usuario 
+    : data.agendamentos.cliente.nome_usuario;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -81,25 +92,30 @@ export default function DetalhesIntercorrenciasAdmin() {
         <Text style={styles.headerTitle}>Julgamento #{data.id_intercorrencia}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* --- SEÇÃO DO CLIENTE (RECLAMANTE) --- */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Versão do Cliente ({data.agendamentos.cliente.nome_usuario})</Text>
-          <Text style={styles.motivoTag}>{data.motivo_categoria}</Text>
-          <Text style={styles.descricaoTxt}>{data.descricao_cliente || "Sem descrição detalhada."}</Text>
+        {/* --- SEÇÃO DO RECLAMANTE (Quem abriu a ocorrência) --- */}
+        <View style={[styles.card, styles.cardReclamante]}>
+          <Text style={styles.sectionTitle}>
+            Versão do Reclamante ({nomeReclamante} - {data.aberta_por?.toUpperCase()})
+          </Text>
+          <Text style={styles.motivoTag}>{data.motivo_categoria || 'Não Especificado'}</Text>
+          <Text style={styles.descricaoTxt}>{data.descricao || "Sem descrição detalhada."}</Text>
+          
           {data.imagem_url ? (
             <Image source={{ uri: data.imagem_url }} style={styles.img} resizeMode="contain" />
           ) : (
-            <Text style={styles.semProva}>Nenhuma foto enviada pelo cliente.</Text>
+            <Text style={styles.semProva}>Nenhuma foto enviada pelo reclamante.</Text>
           )}
         </View>
 
         <Ionicons name="swap-vertical" size={30} color="#ccc" style={{ marginVertical: 10 }} />
 
-        {/* --- SEÇÃO DO PROFISSIONAL (DEFESA) --- */}
-        <View style={[styles.card, { borderTopColor: '#5d5dff', borderTopWidth: 5 }]}>
-          <Text style={styles.sectionTitle}>Defesa do Profissional ({data.agendamentos.profissional.usuario.nome_usuario})</Text>
+        {/* --- SEÇÃO DA DEFESA (Quem responde à ocorrência) --- */}
+        <View style={[styles.card, styles.cardDefesa]}>
+          <Text style={styles.sectionTitle}>
+            Defesa da Contraparte ({nomeDefesa} - {ehClienteReclamante ? 'PROFISSIONAL' : 'CLIENTE'})
+          </Text>
           
           {data.descricao_profissional ? (
             <>
@@ -107,13 +123,13 @@ export default function DetalhesIntercorrenciasAdmin() {
               {data.imagem_url_defesa ? (
                 <Image source={{ uri: data.imagem_url_defesa }} style={styles.img} resizeMode="contain" />
               ) : (
-                <Text style={styles.semProva}>O profissional não anexou fotos na defesa.</Text>
+                <Text style={styles.semProva}>Não foram anexadas fotos na resposta de defesa.</Text>
               )}
             </>
           ) : (
             <View style={styles.aguardando}>
               <Ionicons name="time-outline" size={24} color="#666" />
-              <Text style={styles.aguardandoTxt}>O profissional ainda não enviou uma defesa.</Text>
+              <Text style={styles.aguardandoTxt}>A contraparte ainda não enviou uma resposta de defesa.</Text>
             </View>
           )}
         </View>
@@ -126,21 +142,21 @@ export default function DetalhesIntercorrenciasAdmin() {
             style={[styles.actionBtn, {backgroundColor: '#2ecc71'}]}
             onPress={() => Alert.alert("Encerrar", "Encerrar sem punir ninguém?", [{text: "Sim", onPress: () => router.back()}])}
           >
-            <Text style={styles.actionBtnText}>Encerrar (Inocentes)</Text>
+            <Text style={styles.actionBtnText}>Encerrar Chamado (Inocentes)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.actionBtn, {backgroundColor: '#e67e22'}]}
             onPress={() => handleAdvertencia('cliente')}
           >
-            <Text style={styles.actionBtnText}>Punir Cliente</Text>
+            <Text style={styles.actionBtnText}>Punir Cliente ({data.agendamentos.cliente.nome_usuario})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.actionBtn, {backgroundColor: '#e74c3c'}]}
             onPress={() => handleAdvertencia('profissional')}
           >
-            <Text style={styles.actionBtnText}>Punir Profissional</Text>
+            <Text style={styles.actionBtnText}>Punir Profissional ({data.agendamentos.profissional.usuario.nome_usuario})</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -154,6 +170,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 10 },
   content: { padding: 15, alignItems: 'center' },
   card: { backgroundColor: '#fff', width: '100%', padding: 15, borderRadius: 10, marginBottom: 15, elevation: 2 },
+  cardReclamante: { borderTopColor: '#dc2626', borderTopWidth: 5 },
+  cardDefesa: { borderTopColor: '#5d5dff', borderTopWidth: 5 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 },
   motivoTag: { backgroundColor: '#fee2e2', color: '#dc2626', padding: 5, borderRadius: 5, alignSelf: 'flex-start', fontWeight: 'bold', marginBottom: 10 },
   descricaoTxt: { fontSize: 15, color: '#444', lineHeight: 22, marginBottom: 10 },

@@ -1,3 +1,4 @@
+//DetalhesIntercorrencia_cliente
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -5,8 +6,18 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../services/api';
 
+// Paleta de cores premium unificada para o app
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
+const RED = '#C94A4A';
+const ORANGE = '#E67E22';
+
 export default function DetalhesIntercorrenciaCliente() {
-  const { id } = useLocalSearchParams(); // Aqui está vindo o ID 25 (Agendamento)
+  const { id } = useLocalSearchParams(); 
   const router = useRouter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +27,6 @@ export default function DetalhesIntercorrenciaCliente() {
   const [imagemNova, setImagemNova] = useState(null);
 
   useEffect(() => {
-    console.log("ID do agendamento recebido:", id);
     if (id) {
       fetchDetalhes();
     }
@@ -26,7 +36,6 @@ export default function DetalhesIntercorrenciaCliente() {
     try {
       setLoading(true);
       
-      // MUDANÇA AQUI: Filtramos pela coluna 'id_agendamento' em vez de 'id_intercorrencia'
       const { data, error } = await supabase
         .from('intercorrencia')
         .select(`
@@ -37,15 +46,14 @@ export default function DetalhesIntercorrenciaCliente() {
             profissional:id_profissional ( usuario:id_usuario ( nome_usuario ) )
           )
         `)
-        .eq('id_agendamento', id) // <--- Alterado para buscar pelo ID do agendamento
+        .eq('id_agendamento', id) 
         .single();
 
       if (error) {
-        console.error("Erro ao buscar intercorrência pelo agendamento:", error.message);
+        console.error("Erro ao buscar intercorrência:", error.message);
         throw error;
       }
       
-      console.log("Dados da intercorrência encontrados:", data);
       setData(data);
       if (data?.descricao_cliente) setComentario(data.descricao_cliente);
 
@@ -93,7 +101,6 @@ export default function DetalhesIntercorrenciaCliente() {
         urlFinal = publicUrl.publicUrl;
       }
 
-      // Atualiza usando o id_agendamento para garantir que pegue a linha certa
       const { error } = await supabase
         .from('intercorrencia')
         .update({ 
@@ -117,7 +124,7 @@ export default function DetalhesIntercorrenciaCliente() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#C5005E" />
+        <ActivityIndicator size="large" color={VERDE_VIVO} />
       </View>
     );
   }
@@ -125,10 +132,10 @@ export default function DetalhesIntercorrenciaCliente() {
   if (!data) {
     return (
       <View style={styles.center}>
-        <Ionicons name="search-outline" size={50} color="#ccc" />
+        <Ionicons name="search-outline" size={48} color={TEXT_MID} style={{ marginBottom: 16 }} />
         <Text style={styles.notFoundText}>Nenhuma intercorrência vinculada ao agendamento #{id}.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.btnVoltar}>
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>Voltar</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.btnNotFoundBack}>
+          <Text style={styles.btnEnviarText}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -138,45 +145,73 @@ export default function DetalhesIntercorrenciaCliente() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={30} color="black" />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* BOTÃO VOLTAR NO TOPO */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Minha Reclamação</Text>
-      </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Minha Reclamação</Text>
+        <Text style={styles.subtitle}>Gerencie os detalhes e acompanhe o status da disputa aberta.</Text>
+
+        {/* CARD INFORMATIVO DA RECLAMAÇÃO */}
         <View style={styles.cardInfo}>
-          <Text style={styles.label}>Serviço: <Text style={styles.value}>{data?.agendamentos?.servico?.nome_servico}</Text></Text>
-          <Text style={styles.label}>Profissional: <Text style={styles.value}>{data?.agendamentos?.profissional?.usuario?.nome_usuario}</Text></Text>
-          <Text style={styles.label}>Status: 
-            <Text style={[styles.value, { color: resolvida ? 'green' : '#e67e22' }]}> {data?.status?.toUpperCase()}</Text>
-          </Text>
+          <View style={styles.infoLine}>
+            <Text style={styles.label}>Serviço</Text>
+            <Text style={styles.value}>{data?.agendamentos?.servico?.nome_servico}</Text>
+          </View>
+          
+          <View style={styles.infoLine}>
+            <Text style={styles.label}>Profissional</Text>
+            <Text style={styles.value}>{data?.agendamentos?.profissional?.usuario?.nome_usuario}</Text>
+          </View>
+
+          <View style={[styles.infoLine, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+            <Text style={styles.label}>Status do Processo</Text>
+            <View style={[styles.statusBadge, { backgroundColor: resolvida ? '#EBF7EE' : '#FFF3E0' }]}>
+              <Text style={[styles.statusBadgeText, { color: resolvida ? VERDE_VIVO : ORANGE }]}>
+                {data?.status?.toUpperCase()}
+              </Text>
+            </View>
+          </View>
         </View>
 
+        {/* RESPOSTA DO PROFISSIONAL (SE EXISTIR) */}
         {data?.descricao_profissional && (
           <View style={styles.sectionProfissional}>
-            <Text style={styles.sectionTitle}>Resposta do Profissional:</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={PETROLEO} />
+              <Text style={styles.sectionTitle}>Resposta do Profissional</Text>
+            </View>
             <Text style={styles.descricaoTxt}>{data.descricao_profissional}</Text>
             {data?.imagem_url_defesa && (
-              <Image source={{ uri: data.imagem_url_defesa }} style={styles.imgDefesa} resizeMode="contain" />
+              <Image source={{ uri: data.imagem_url_defesa }} style={styles.imgDefesa} />
             )}
           </View>
         )}
 
-        <View style={styles.divider} />
-
+        {/* DECISÃO FINAL DO ADMINISTRADOR (CASO RESOLVIDO) */}
         {resolvida && (
           <View style={styles.vereditoCard}>
-            <Text style={styles.vereditoTitle}>Decisão Final do Administrador:</Text>
-            <Text style={styles.vereditoTxt}>{data?.veredito || 'Caso encerrado pelo administrador.'}</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons name="ribbon-outline" size={18} color={VERDE_VIVO} />
+              <Text style={styles.vereditoTitle}>Decisão do Administrador</Text>
+            </View>
+            <Text style={styles.vereditoTxt}>{data?.veredito || 'Caso encerrado pelo administrador do sistema.'}</Text>
           </View>
         )}
 
+        {/* DIVIDER VISUAL */}
+        <View style={styles.divider} />
+
+        {/* ÁREA DA SUA RECLAMAÇÃO ORIGINAL */}
         <View style={styles.defesaArea}>
-          <Text style={styles.sectionTitle}>Sua Reclamação Original:</Text>
+          <Text style={styles.subSectionTitle}>Categoria da Ocorrência</Text>
           <Text style={styles.motivoTxt}>{data?.motivo_categoria}</Text>
           
+          <Text style={[styles.subSectionTitle, { marginTop: 16 }]}>Seus Detalhes / Argumentação</Text>
           {!resolvida ? (
             <>
               <TextInput
@@ -185,27 +220,36 @@ export default function DetalhesIntercorrenciaCliente() {
                 numberOfLines={4}
                 value={comentario}
                 onChangeText={setComentario}
+                placeholder="Descreva detalhadamente o ocorrido..."
+                placeholderTextColor="#A4B4AB"
               />
               <TouchableOpacity style={styles.btnFoto} onPress={selecionarImagem}>
-                <Ionicons name="camera" size={20} color="#fff" />
-                <Text style={styles.btnFotoText}>Alterar Prova</Text>
+                <Ionicons name="camera-outline" size={18} color={PETROLEO} style={{ marginRight: 6 }} />
+                <Text style={styles.btnFotoText}>Alterar Imagem de Prova</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <Text style={styles.descricaoTxt}>{data?.descricao_cliente}</Text>
+            <View style={styles.closedCommentBox}>
+              <Text style={styles.descricaoTxt}>{data?.descricao_cliente}</Text>
+            </View>
           )}
 
+          {/* EXIBIÇÃO DE MÍDIA / ANEXO DE PROVA */}
           {(imagemNova || data?.imagem_url) && (
-            <Image source={{ uri: imagemNova || data?.imagem_url }} style={styles.miniImg} />
+            <View style={styles.imagePreviewContainer}>
+              <Text style={styles.imageLabel}>Evidência Anexada:</Text>
+              <Image source={{ uri: imagemNova || data?.imagem_url }} style={styles.miniImg} />
+            </View>
           )}
 
+          {/* BOTÃO SALVAR ALTERAÇÃO DA INTERCORRÊNCIA */}
           {!resolvida && (
             <TouchableOpacity 
-              style={[styles.btnEnviar, enviando && { opacity: 0.5 }]} 
+              style={[styles.btnEnviar, enviando && { opacity: 0.7 }]} 
               onPress={atualizarReclamacao}
               disabled={enviando}
             >
-              {enviando ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnEnviarText}>Atualizar Reclamação</Text>}
+              {enviando ? <ActivityIndicator color={WHITE} /> : <Text style={styles.btnEnviarText}>Atualizar Reclamação</Text>}
             </TouchableOpacity>
           )}
         </View>
@@ -215,29 +259,245 @@ export default function DetalhesIntercorrenciaCliente() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#FFF', elevation: 2, paddingTop: 50 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 15 },
-  content: { padding: 20 },
-  cardInfo: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, marginBottom: 20, borderLeftWidth: 5, borderLeftColor: '#C5005E' },
-  label: { fontSize: 14, color: '#666', marginBottom: 5 },
-  value: { fontWeight: 'bold', color: '#333', fontSize: 15 },
-  sectionProfissional: { backgroundColor: '#E3F2FD', padding: 15, borderRadius: 10, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#C5005E' },
-  motivoTxt: { fontSize: 18, fontWeight: 'bold', color: 'red', marginBottom: 10 },
-  descricaoTxt: { fontSize: 15, color: '#444', lineHeight: 22 },
-  imgDefesa: { width: '100%', height: 200, marginTop: 10, borderRadius: 8 },
-  divider: { height: 1, backgroundColor: '#DDD', marginVertical: 20 },
-  vereditoCard: { backgroundColor: '#E8F5E9', padding: 15, borderRadius: 10, borderLeftWidth: 5, borderLeftColor: 'green', marginBottom: 20 },
-  vereditoTitle: { fontWeight: 'bold', color: '#1B5E20' },
-  vereditoTxt: { fontSize: 15, color: '#333', marginTop: 5 },
-  input: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#DDD', textAlignVertical: 'top', fontSize: 15, minHeight: 100 },
-  btnFoto: { backgroundColor: '#666', flexDirection: 'row', padding: 12, borderRadius: 8, marginTop: 15, justifyContent: 'center', alignItems: 'center' },
-  btnFotoText: { color: '#fff', marginLeft: 10, fontWeight: 'bold' },
-  miniImg: { width: '100%', height: 250, borderRadius: 10, marginTop: 15, resizeMode: 'contain', backgroundColor: '#eee' },
-  btnEnviar: { backgroundColor: '#C5005E', padding: 18, borderRadius: 10, marginTop: 20, alignItems: 'center', marginBottom: 40 },
-  btnEnviarText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  btnVoltar: { backgroundColor: '#C5005E', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 20 },
-  notFoundText: { fontSize: 16, color: '#666', marginTop: 10, textAlign: 'center' }
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 24,
+    backgroundColor: CREAM 
+  },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingTop: 20,
+    paddingBottom: 40 
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 4,
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5,
+    marginBottom: 6
+  },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_MID,
+    marginBottom: 24,
+  },
+  cardInfo: { 
+    backgroundColor: WHITE, 
+    padding: 18, 
+    borderRadius: 16, 
+    marginBottom: 20, 
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  infoLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: CREAM
+  },
+  label: { 
+    fontSize: 13, 
+    color: TEXT_MID, 
+    fontWeight: '500' 
+  },
+  value: { 
+    fontWeight: '700', 
+    color: PETROLEO, 
+    fontSize: 14 
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8
+  },
+  sectionProfissional: { 
+    backgroundColor: WHITE, 
+    padding: 16, 
+    borderRadius: 14, 
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: BORDER
+  },
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: PETROLEO 
+  },
+  subSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8
+  },
+  motivoTxt: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: RED, 
+    marginBottom: 4 
+  },
+  descricaoTxt: { 
+    fontSize: 14, 
+    color: PETROLEO, 
+    lineHeight: 22,
+    fontWeight: '500'
+  },
+  imgDefesa: { 
+    width: '100%', 
+    height: 180, 
+    marginTop: 12, 
+    borderRadius: 10,
+    backgroundColor: CREAM 
+  },
+  divider: { 
+    height: 1, 
+    backgroundColor: BORDER, 
+    marginVertical: 12 
+  },
+  vereditoCard: { 
+    backgroundColor: '#EBF7EE', 
+    padding: 16, 
+    borderRadius: 14, 
+    borderWidth: 1,
+    borderColor: '#D4EDDA',
+    marginBottom: 16 
+  },
+  vereditoTitle: { 
+    fontWeight: '700', 
+    color: VERDE_VIVO,
+    fontSize: 14 
+  },
+  vereditoTxt: { 
+    fontSize: 14, 
+    color: PETROLEO, 
+    lineHeight: 20,
+    fontWeight: '500'
+  },
+  defesaArea: {
+    marginTop: 8
+  },
+  input: { 
+    backgroundColor: WHITE, 
+    padding: 14, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: BORDER, 
+    textAlignVertical: 'top', 
+    fontSize: 15, 
+    minHeight: 110,
+    color: PETROLEO,
+    fontWeight: '500'
+  },
+  closedCommentBox: {
+    backgroundColor: WHITE,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER
+  },
+  btnFoto: { 
+    backgroundColor: WHITE, 
+    flexDirection: 'row', 
+    paddingVertical: 10, 
+    paddingHorizontal: 14,
+    borderRadius: 10, 
+    marginTop: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignSelf: 'flex-start'
+  },
+  btnFotoText: { 
+    color: PETROLEO, 
+    fontWeight: '600',
+    fontSize: 13 
+  },
+  imagePreviewContainer: {
+    marginTop: 20
+  },
+  imageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT_MID,
+    marginBottom: 8
+  },
+  miniImg: { 
+    width: '100%', 
+    height: 220, 
+    borderRadius: 12, 
+    resizeMode: 'cover', 
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER
+  },
+  btnEnviar: { 
+    backgroundColor: VERDE_VIVO, 
+    paddingVertical: 15, 
+    borderRadius: 12, 
+    marginTop: 24, 
+    alignItems: 'center',
+    shadowColor: VERDE_VIVO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  btnEnviarText: { 
+    color: WHITE, 
+    fontWeight: '600', 
+    fontSize: 16,
+    letterSpacing: 0.3
+  },
+  btnNotFoundBack: {
+    backgroundColor: PETROLEO,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 16
+  },
+  notFoundText: { 
+    fontSize: 15, 
+    color: TEXT_MID, 
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 8
+  }
 });

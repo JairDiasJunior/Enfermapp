@@ -1,9 +1,19 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../services/api';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Paleta de cores premium unificada para o app
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
+const RED = '#C94A4A';
+const GOLD = '#E6A119';
 
 export default function NotificacoesProfissional() {
   const router = useRouter();
@@ -14,7 +24,7 @@ export default function NotificacoesProfissional() {
 
   const buscarDados = async () => {
     try {
-      setLoading(true);
+      if (!refreshing) setLoading(true);
       const nomeLogado = await AsyncStorage.getItem('nome_logado');
 
       // 1. Pegar ID e dados de advertência do profissional
@@ -49,8 +59,7 @@ export default function NotificacoesProfissional() {
           `)
           .eq('agendamentos.id_profissional', prof.id_profissional);
 
-        // 4. Buscar Avaliações Novas (Opcional: você pode criar uma tabela 'avaliacoes')
-        // Exemplo básico assumindo que você tenha essa tabela:
+        // 4. Buscar Avaliações Novas
         const { data: avaliacoes } = await supabase
           .from('avaliacoes')
           .select('*')
@@ -69,7 +78,7 @@ export default function NotificacoesProfissional() {
         setNotificacoes(listaNotificacoes);
       }
     } catch (error) {
-      console.error("Erro:", error.message);
+      console.error("Erro ao carregar dados do profissional:", error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,6 +91,11 @@ export default function NotificacoesProfissional() {
     }, [])
   );
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    buscarDados();
+  };
+
   const renderItem = ({ item }) => {
     // --- NOTIFICAÇÃO DE DISPUTA ---
     if (item.tipo === 'disputa') {
@@ -90,18 +104,28 @@ export default function NotificacoesProfissional() {
 
       return (
         <TouchableOpacity 
-          style={[styles.cardDisputa, resolvida && styles.cardResolvido]}
+          style={styles.cardBase}
+          activeOpacity={0.7}
           onPress={() => router.push({ pathname: '/profissional/detalhes_intercorrencia_view', params: { id: item.id_intercorrencia } })}
         >
-          <Ionicons name={resolvida ? "checkmark-circle" : "alert-circle"} size={30} color={resolvida ? "#2ecc71" : "#e74c3c"} />
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 2 }]}>
-              {resolvida ? "Disputa Resolvida" : (contraMim ? "Nova Reclamação de Cliente" : "Sua Disputa em Análise")}
-            </Text>
-            <Text style={[styles.cardSub, { textAlign: 'left' }]}>
-              {resolvida ? `Veredito: ${item.veredito}` : `Serviço: ${item.agendamentos?.servico?.nome_servico}`}
+          <View style={[styles.iconWrapper, { backgroundColor: resolvida ? '#EBF7EE' : '#FDF2F2' }]}>
+            <Ionicons name={resolvida ? "checkmark-done" : "alert-circle-outline"} size={20} color={resolvida ? VERDE_VIVO : RED} />
+          </View>
+          
+          <View style={styles.cardTextContent}>
+            <View style={styles.badgeRow}>
+              <Text style={[styles.cardTitle, { color: resolvida ? VERDE_VIVO : RED }]}>
+                {resolvida ? "Disputa Encerrada" : (contraMim ? "Nova Reclamação" : "Sua Disputa em Análise")}
+              </Text>
+              <View style={[styles.tagBadge, { backgroundColor: resolvida ? '#EBF7EE' : '#FDF2F2' }]}>
+                <Text style={[styles.tagBadgeText, { color: resolvida ? VERDE_VIVO : RED }]}>Caso</Text>
+              </View>
+            </View>
+            <Text style={styles.cardSub} numberOfLines={2}>
+              {resolvida ? `Veredito: ${item.veredito}` : `Sobre o serviço de ${item.agendamentos?.servico?.nome_servico}.`}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={TEXT_MID} />
         </TouchableOpacity>
       );
     }
@@ -109,107 +133,260 @@ export default function NotificacoesProfissional() {
     // --- NOTIFICAÇÃO DE AVALIAÇÃO ---
     if (item.tipo === 'avaliacao') {
       return (
-        <View style={styles.cardAvaliacao}>
-          <Ionicons name="star" size={24} color="#f1c40f" />
-          <View style={{marginLeft: 10}}>
-            <Text style={styles.cardTitle}>Você recebeu uma avaliação!</Text>
-            <Text style={styles.cardSub}>Um cliente avaliou seu último serviço.</Text>
+        <View style={styles.cardBase}>
+          <View style={[styles.iconWrapper, { backgroundColor: '#FFFDE7' }]}>
+            <Ionicons name="star" size={18} color={GOLD} />
+          </View>
+          <View style={styles.cardTextContent}>
+            <Text style={[styles.cardTitle, { color: PETROLEO }]}>Nova Avaliação Recebida!</Text>
+            <Text style={styles.cardSub}>Um cliente deixou uma nota e comentário sobre o seu último atendimento.</Text>
           </View>
         </View>
       );
     }
 
-    // --- NOTIFICAÇÃO DE AGENDAMENTO (ORIGINAL) ---
+    // --- NOTIFICAÇÃO DE AGENDAMENTO (PENDENTE) ---
     if (item.status === 'pendente') {
       return (
         <TouchableOpacity 
-          style={styles.cardAviso}
+          style={styles.cardBase}
+          activeOpacity={0.7}
           onPress={() => router.push({
             pathname: '/profissional/detalhes_solicitacao',
             params: { idAgendamento: item.id_agendamento }
           })}
         >
-          <Text style={styles.cardTitle}>Nova Solicitação de Atendimento</Text>
-          <Text style={styles.cardSub}>Cliente: {item.usuario?.nome_usuario}</Text>
-          <Text style={styles.link}>Clique para aceitar ou recusar</Text>
+          <View style={[styles.iconWrapper, { backgroundColor: '#EBF7EE' }]}>
+            <Ionicons name="mail-outline" size={20} color={VERDE_VIVO} />
+          </View>
+          <View style={styles.cardTextContent}>
+            <View style={styles.badgeRow}>
+              <Text style={[styles.cardTitle, { color: VERDE_VIVO }]}>Solicitação de Atendimento</Text>
+              <View style={[styles.tagBadge, { backgroundColor: '#EBF7EE' }]}>
+                <Text style={[styles.tagBadgeText, { color: VERDE_VIVO }]}>Novo</Text>
+              </View>
+            </View>
+            <Text style={styles.cardSub}>
+              Cliente <Text style={styles.bold}>{item.usuario?.nome_usuario}</Text> enviou um pedido. Toque para responder.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={VERDE_VIVO} />
         </TouchableOpacity>
       );
     }
 
+    // --- NOTIFICAÇÃO DE AGENDAMENTO (RECUSADO / CANCELADO) ---
     if (item.status === 'rejeitado' || item.status === 'cancelado') {
         return (
-          <View style={[styles.cardInformativo, { borderLeftWidth: 5, borderLeftColor: 'red' }]}>
-            <Text style={[styles.cardTitle, { color: '#600' }]}>Atendimento Recusado</Text>
-            <Text style={styles.cardSub}>Você recusou a solicitação de {item.usuario?.nome_usuario}.</Text>
+          <View style={styles.cardBase}>
+            <View style={[styles.iconWrapper, { backgroundColor: '#FDF2F2' }]}>
+              <Ionicons name="close-circle-outline" size={20} color={RED} />
+            </View>
+            <View style={styles.cardTextContent}>
+              <Text style={[styles.cardTitle, { color: PETROLEO }]}>Atendimento Cancelado</Text>
+              <Text style={styles.cardSub}>
+                A solicitação de {item.usuario?.nome_usuario} para o serviço foi recusada ou cancelada.
+              </Text>
+            </View>
           </View>
         );
     }
 
+    // --- NOTIFICAÇÃO DE AGENDAMENTO (CONFIRMADO) ---
     return (
-      <View style={styles.cardInformativo}>
-        <Text style={styles.cardTitle}>Atendimento Confirmado</Text>
-        <Text style={styles.cardSub}>Pedido de {item.servico?.nome_servico} agendado.</Text>
+      <View style={styles.cardBase}>
+        <View style={[styles.iconWrapper, { backgroundColor: '#EBF7EE' }]}>
+          <Ionicons name="calendar-outline" size={20} color={VERDE_VIVO} />
+        </View>
+        <View style={styles.cardTextContent}>
+          <Text style={[styles.cardTitle, { color: PETROLEO }]}>Atendimento Confirmado</Text>
+          <Text style={styles.cardSub}>
+            O procedimento de <Text style={styles.bold}>{item.servico?.nome_servico}</Text> está confirmado na sua agenda.
+          </Text>
+        </View>
       </View>
     );
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close-outline" size={40} color="red" />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notificações</Text>
+        <Text style={styles.headerTitle}>Central de Notificações</Text>
       </View>
 
       {/* BANNER DE AVISO / SUSPENSÃO */}
       {perfil?.advertencias > 0 && (
         <View style={[styles.bannerAviso, perfil.advertencias >= 3 ? styles.bannerSuspenso : null]}>
-          <Ionicons name="shield-alert" size={30} color="#fff" />
-          <View style={{flex: 1, marginLeft: 10}}>
-            <Text style={styles.bannerTitle}>
-              {perfil.advertencias >= 3 ? "CONTA BLOQUEADA" : `AVISO DE SEGURANÇA (${perfil.advertencias}/3)`}
-            </Text>
-            <Text style={styles.bannerSub}>
-              {perfil.advertencias >= 3 
-                ? "Sua conta foi suspensa permanentemente." 
-                : "Você recebeu uma advertência do administrador. Evite novas infrações."}
-            </Text>
-          </View>
+          <Ionicons name="warning-outline" size={20} color={WHITE} />
+          <Text style={styles.bannerText}>
+            {perfil.advertencias >= 3 
+              ? "Sua conta de profissional encontra-se suspensa pela moderação devido ao limite de infrações." 
+              : `Atenção: Você possui ${perfil.advertencias}/3 advertência(s). Certifique-se de seguir os termos para evitar bloqueios.`}
+          </Text>
         </View>
       )}
 
-      <FlatList
-        data={notificacoes}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 15 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={buscarDados} />}
-        ListEmptyComponent={<Text style={styles.vazio}>Nenhuma notificação por enquanto.</Text>}
-      />
-    </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={VERDE_VIVO} />
+        </View>
+      ) : (
+        <FlatList
+          data={notificacoes}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[VERDE_VIVO]} tintColor={VERDE_VIVO} />
+          }
+          ListEmptyComponent={
+            <View style={styles.vazioContainer}>
+              <Ionicons name="mail-open-outline" size={44} color={TEXT_MID} />
+              <Text style={styles.vazio}>Nenhuma atualização ou notificação pendente por aqui.</Text>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8C8C8C' },
-  header: { paddingTop: 50, backgroundColor: '#D9D9D9', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingBottom: 10 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 10 },
-  
-  // Estilos Novos
-  cardDisputa: { backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 15, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 8, borderLeftColor: '#e74c3c' },
-  cardResolvido: { borderLeftColor: '#2ecc71', backgroundColor: '#f0fff4' },
-  cardAvaliacao: { backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 15, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 8, borderLeftColor: '#f1c40f' },
-  
-  bannerAviso: { backgroundColor: '#e67e22', padding: 15, flexDirection: 'row', alignItems: 'center', margin: 15, borderRadius: 10, elevation: 5 },
-  bannerSuspenso: { backgroundColor: '#c0392b' },
-  bannerTitle: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  bannerSub: { color: '#fff', fontSize: 13 },
-
-  cardAviso: { backgroundColor: '#D9D9D9', padding: 20, borderRadius: 5, marginBottom: 15, borderBottomWidth: 4, borderBottomColor: '#777' },
-  cardInformativo: { backgroundColor: '#D9D9D9', padding: 15, borderRadius: 5, marginBottom: 15, opacity: 0.9 },
-  cardTitle: { fontSize: 17, fontWeight: 'bold', color: '#000' },
-  cardSub: { fontSize: 15, color: '#333', marginTop: 5 },
-  link: { fontSize: 14, marginTop: 10, fontWeight: 'bold', color: '#C5005E', textDecorationLine: 'underline' },
-  vazio: { textAlign: 'center', marginTop: 50, fontSize: 16, color: '#eee' }
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
+  },
+  header: { 
+    paddingTop: 60, 
+    paddingHorizontal: 24, 
+    paddingBottom: 16,
+    backgroundColor: CREAM,
+    borderBottomWidth: 1,
+    borderColor: BORDER
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 4
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 15,
+    fontWeight: '500'
+  },
+  headerTitle: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5
+  },
+  listContent: { 
+    padding: 24 
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  cardBase: { 
+    backgroundColor: WHITE, 
+    padding: 16, 
+    borderRadius: 16, 
+    marginBottom: 14, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    gap: 12,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 2
+  },
+  iconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  cardTextContent: {
+    flex: 1
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingRight: 2
+  },
+  tagBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  tagBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3
+  },
+  bannerAviso: { 
+    backgroundColor: GOLD, 
+    paddingVertical: 12,
+    paddingHorizontal: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginHorizontal: 24,
+    marginTop: 16, 
+    borderRadius: 12,
+    gap: 10
+  },
+  bannerSuspenso: { 
+    backgroundColor: RED 
+  },
+  bannerText: { 
+    color: WHITE, 
+    fontWeight: '600', 
+    flex: 1, 
+    fontSize: 13,
+    lineHeight: 18
+  },
+  cardTitle: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: PETROLEO,
+  },
+  cardSub: { 
+    fontSize: 13, 
+    color: TEXT_MID, 
+    lineHeight: 18,
+    fontWeight: '500'
+  },
+  bold: { 
+    fontWeight: '700',
+    color: PETROLEO
+  },
+  vazioContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 80,
+    gap: 12,
+    paddingHorizontal: 20
+  },
+  vazio: { 
+    textAlign: 'center', 
+    fontSize: 15, 
+    color: TEXT_MID,
+    lineHeight: 22,
+    fontWeight: '500'
+  }
 });

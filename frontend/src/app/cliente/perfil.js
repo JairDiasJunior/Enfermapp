@@ -1,11 +1,21 @@
+//perfil 
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { supabase } from '../../services/api';
 import { decode } from 'base64-arraybuffer'; 
+
+// Paleta de cores refinada combinando com o Dashboard
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
+const RED = '#C94A4A';
 
 export default function Perfil() {
   const router = useRouter();
@@ -19,7 +29,7 @@ export default function Perfil() {
     telefone: '',
     pagamento_usado: '',
     servicos_recebidos: 0,
-    advertencias: 0 // Estado atualizado para o nome correto
+    advertencias: 0 
   });
 
   const buscarDados = async () => {
@@ -31,7 +41,6 @@ export default function Perfil() {
         return;
       }
 
-      // Agora buscando a coluna 'advertencias' conforme o seu Banco de Dados
       const { data, error } = await supabase
         .from('usuario')
         .select('nome_usuario, cidade, telefone, pagamento_usado, foto_perfil, servicos_recebidos, advertencias')
@@ -47,7 +56,7 @@ export default function Perfil() {
           telefone: data.telefone || 'Não informado',
           pagamento_usado: data.pagamento_usado || 'Não informado',
           servicos_recebidos: data.servicos_recebidos || 0,
-          advertencias: data.advertencias || 0 // Mapeando o valor real
+          advertencias: data.advertencias || 0 
         });
         setFoto(data.foto_perfil);
       }
@@ -102,7 +111,7 @@ export default function Perfil() {
       if (updateError) throw updateError;
 
       setFoto(publicUrl);
-      Alert.alert("Sucesso", "Foto de perfil atualizada!");
+      Alert.alert("Sucesso", "Foto de perfil updated!");
     } catch (error) {
       Alert.alert("Erro", error.message);
     } finally {
@@ -113,27 +122,38 @@ export default function Perfil() {
   if (fetching) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#808000" />
+        <ActivityIndicator size="large" color={VERDE_VIVO} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* BOTÃO VOLTAR */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
+        </TouchableOpacity>
+
+        {/* HEADER DO PERFIL */}
         <View style={styles.headerCard}>
           <TouchableOpacity 
-            style={styles.buttonIcon} 
+            style={[styles.avatarCircle, foto ? styles.avatarCircleFilled : null]} 
             onPress={escolherFoto}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#808000" />
+              <ActivityIndicator color={WHITE} />
             ) : foto ? (
               <Image source={{ uri: foto }} style={styles.fotoAvatar} />
             ) : (
-              <Ionicons name="person-outline" size={40} color="grey" />
+              <Ionicons name="person" size={32} color={WHITE} />
             )}
+            <View style={styles.editBadge}>
+              <Ionicons name="camera" size={12} color={WHITE} />
+            </View>
           </TouchableOpacity>
           
           <View style={styles.userInfo}>
@@ -142,94 +162,261 @@ export default function Perfil() {
           </View>
         </View>
 
-        <View style={styles.separator} /> 
-
-        <View style={styles.detailsSection}>
-          <Text style={styles.sectionTitle}>DADOS DO CLIENTE</Text>
+        {/* CARD PRINCIPAL DE DETALHES */}
+        <View style={styles.cardDetails}>
+          <Text style={styles.sectionTitle}>Dados do Cliente</Text>
 
           <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={20} color="black" />
-            <Text style={styles.infoLabel}>Cidade: <Text style={styles.infoValue}>{dadosUsuario.cidade}</Text></Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="location" size={18} color={VERDE_VIVO} />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Cidade</Text>
+              <Text style={styles.infoValue}>{dadosUsuario.cidade}</Text>
+            </View>
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={20} color="black" />
-            <Text style={styles.infoLabel}>Telefone: <Text style={styles.infoValue}>{dadosUsuario.telefone}</Text></Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="call" size={18} color={VERDE_VIVO} />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Telefone</Text>
+              <Text style={styles.infoValue}>{dadosUsuario.telefone}</Text>
+            </View>
           </View>
 
           <View style={styles.infoRow}>
-            <Ionicons name="briefcase-outline" size={20} color="black" />
-            <Text style={styles.infoLabel}>Serviços Recebidos: <Text style={styles.infoValue}>{dadosUsuario.servicos_recebidos}</Text></Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="briefcase" size={18} color={VERDE_VIVO} />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Serviços Recebidos</Text>
+              <Text style={styles.infoValue}>{dadosUsuario.servicos_recebidos}</Text>
+            </View>
           </View>
 
-          {/* NOVA LINHA: ADVERTÊNCIAS */}
           <View style={styles.infoRow}>
-            <Ionicons 
-              name="alert-circle-outline" 
-              size={20} 
-              color={dadosUsuario.advertencias > 0 ? "red" : "black"} 
-            />
-            <Text style={styles.infoLabel}>
-              Advertências: <Text style={[
+            <View style={[styles.iconContainer, dadosUsuario.advertencias > 0 && { backgroundColor: '#FDF2F2' }]}>
+              <Ionicons 
+                name="alert-circle" 
+                size={18} 
+                color={dadosUsuario.advertencias > 0 ? RED : TEXT_MID} 
+              />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Advertências</Text>
+              <Text style={[
                 styles.infoValue, 
-                dadosUsuario.advertencias > 0 && { color: 'red', fontWeight: 'bold' }
+                dadosUsuario.advertencias > 0 && { color: RED, fontWeight: '700' }
               ]}>
                 {dadosUsuario.advertencias}
               </Text>
-            </Text>
+            </View>
           </View>
 
-          <View style={styles.subSection}>
-            <Text style={styles.subTitle}>PAGAMENTO PREFERENCIAL</Text>
-            <Text style={styles.infoValueBold}>{dadosUsuario.pagamento_usado.toUpperCase()}</Text>
+          {/* SUBSECÇÃO DE PAGAMENTO */}
+          <View style={styles.paymentSection}>
+            <Text style={styles.subTitle}>Forma de Pagamento Preferencial</Text>
+            <View style={styles.badgePagamento}>
+              <Ionicons name="card" size={16} color={PETROLEO} />
+              <Text style={styles.infoValueBold}>{dadosUsuario.pagamento_usado.toUpperCase()}</Text>
+            </View>
           </View>
-
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => router.push('/cliente/editar_dados')}
-          >
-            <Text style={styles.buttonText}>EDITAR MEUS DADOS</Text>
-          </TouchableOpacity>
         </View> 
+
+        {/* BOTÃO EDITAR */}
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => router.push('/cliente/editar_dados')}
+        >
+          <Ionicons name="create-outline" size={18} color={WHITE} style={{ marginRight: 8 }} />
+          <Text style={styles.buttonText}>Editar meus dados</Text>
+        </TouchableOpacity>
+
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8C8C8C' },
-  center: { flex: 1, backgroundColor: '#8C8C8C', justifyContent: 'center', alignItems: 'center' },
-  headerCard: { flexDirection: 'row', marginTop: 50, paddingHorizontal: 20, alignItems: 'center' },
-  buttonIcon: { 
-    backgroundColor: 'black', 
-    width: 80, 
-    height: 80, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderRadius: 40, 
-    overflow: 'hidden', 
-    borderWidth: 2, 
-    borderColor: '#808000' 
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
   },
-  fotoAvatar: { width: '100%', height: '100%' },
-  userInfo: { marginLeft: 20 },
-  name: { fontSize: 22, fontWeight: 'bold', color: 'black' },
-  avisoText: { fontSize: 14, color: '#333' },
-  separator: { height: 2, backgroundColor: '#000', marginVertical: 20, marginHorizontal: 20 },
-  detailsSection: { paddingHorizontal: 25 },
-  sectionTitle: { fontSize: 20, fontWeight: '900', color: '#000', marginBottom: 20, textAlign: 'center' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  infoLabel: { fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
-  infoValue: { fontWeight: 'normal' },
-  infoValueBold: { fontWeight: 'bold', fontSize: 16, color: 'black' },
-  subSection: { marginTop: 20, marginBottom: 10 },
-  subTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#222' },
-  button: { 
-    backgroundColor: '#808000', 
-    paddingVertical: 15, 
-    borderRadius: 10, 
-    marginTop: 30, 
+  center: { 
+    flex: 1, 
+    backgroundColor: CREAM, 
+    justifyContent: 'center', 
     alignItems: 'center' 
   },
-  buttonText: { fontSize: 18, color: '#fff', fontWeight: 'bold' },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingTop: 20,
+    paddingBottom: 40 
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 4,
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  headerCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  avatarCircle: { 
+    width: 74, 
+    height: 74, 
+    borderRadius: 37, 
+    backgroundColor: PETROLEO, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderWidth: 1.5, 
+    borderColor: BORDER, 
+    position: 'relative'
+  },
+  avatarCircleFilled: {
+    borderColor: VERDE_VIVO,
+    borderWidth: 2,
+  },
+  fotoAvatar: { 
+    width: '100%', 
+    height: '100%',
+    borderRadius: 37 
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: VERDE_VIVO,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: CREAM
+  },
+  userInfo: { 
+    marginLeft: 16,
+    flex: 1
+  },
+  name: { 
+    fontSize: 22, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5
+  },
+  avisoText: { 
+    fontSize: 13, 
+    color: TEXT_MID,
+    marginTop: 2,
+    fontWeight: '500'
+  },
+  cardDetails: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sectionTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: PETROLEO, 
+    marginBottom: 20,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase'
+  },
+  infoRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 16 
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: CREAM,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12
+  },
+  textContainer: {
+    flex: 1
+  },
+  infoLabel: { 
+    fontSize: 11, 
+    color: TEXT_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600'
+  },
+  infoValue: { 
+    fontSize: 15,
+    color: PETROLEO,
+    fontWeight: '500',
+    marginTop: 1
+  },
+  paymentSection: { 
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: BORDER
+  },
+  subTitle: { 
+    fontSize: 11, 
+    fontWeight: '600', 
+    marginBottom: 8, 
+    color: TEXT_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  badgePagamento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: CREAM,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    gap: 6
+  },
+  infoValueBold: { 
+    fontWeight: '700', 
+    fontSize: 14, 
+    color: PETROLEO 
+  },
+  button: { 
+    backgroundColor: VERDE_VIVO, 
+    paddingVertical: 14, 
+    borderRadius: 12, 
+    marginTop: 24, 
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: VERDE_VIVO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  buttonText: { 
+    fontSize: 16, 
+    color: WHITE, 
+    fontWeight: '600',
+    letterSpacing: 0.3
+  },
 });

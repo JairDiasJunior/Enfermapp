@@ -1,8 +1,19 @@
+//DetalhesAgendameno_cliente
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../services/api';
+
+// Paleta de cores premium unificada
+const CREAM = '#FDFBF7';        
+const VERDE_VIVO = '#2E6F40';   
+const PETROLEO = '#0F262E';     
+const TEXT_MID = '#768A7E';     
+const BORDER = '#E3E8E5';       
+const WHITE = '#FFFFFF';
+const RED = '#C94A4A';
+const GOLD = '#E6A119';
 
 export default function DetalhesAgendamento() {
   const { id } = useLocalSearchParams();
@@ -28,7 +39,7 @@ export default function DetalhesAgendamento() {
           table: 'agendamentos', 
           filter: `id_agendamento=eq.${id}` 
         },
-        (payload) => {
+        () => {
           fetchDetalhes();
         }
       )
@@ -118,22 +129,28 @@ export default function DetalhesAgendamento() {
   };
 
   const getStatusAtendimento = () => {
-    if (!agendamento) return { texto: "", cor: "#000", icon: "" };
+    if (!agendamento) return { texto: "", cor: PETROLEO, bg: CREAM, icon: "ellipse-outline" };
     const { presenca_cliente, presenca_profissional, finalizado_cliente, finalizado_profissional } = agendamento;
-    if (finalizado_cliente && finalizado_profissional) return { texto: "Finalizado", cor: "#007BFF", icon: "🔵" };
-    if (finalizado_cliente || finalizado_profissional) return { texto: "Aguardando Finalização", cor: "#A020F0", icon: "🟣" };
-    if (presenca_cliente && presenca_profissional) return { texto: "Em Andamento", cor: "#A020F0", icon: "🟣" };
-    if (presenca_cliente || presenca_profissional) return { texto: "Confirmado", cor: "#32CD32", icon: "🟢" };
-    return { texto: "Aguardando Confirmação", cor: "#FFD700", icon: "🟡" };
+    
+    if (finalizado_cliente && finalizado_profissional) 
+      return { texto: "Finalizado", cor: VERDE_VIVO, bg: '#EBF7EE', icon: "checkmark-done" };
+    if (finalizado_cliente || finalizado_profissional) 
+      return { texto: "Aguardando Finalização", cor: PETROLEO, bg: '#ECEFF1', icon: "hourglass-outline" };
+    if (presenca_cliente && presenca_profissional) 
+      return { texto: "Em Andamento", cor: '#3F51B5', bg: '#E8EAF6', icon: "play-circle-outline" };
+    if (presenca_cliente || presenca_profissional) 
+      return { texto: "Confirmado", cor: VERDE_VIVO, bg: '#EBF7EE', icon: "checkmark-circle-outline" };
+      
+    return { texto: "Aguardando Confirmação", cor: GOLD, bg: '#FFFDE7', icon: "alert-circle-outline" };
   };
 
   const getStatusPagamento = () => {
-    if (!agendamento) return "";
+    if (!agendamento) return "Aguardando Status";
     const { pagamento_cliente, pagamento_profissional } = agendamento;
     if (pagamento_cliente && pagamento_profissional) return "Pagamento Concluído";
-    if (pagamento_cliente) return "Pagamento Informado pelo Cliente";
+    if (pagamento_cliente) return "Pagamento Informado por Você";
     if (pagamento_profissional) return "Pagamento Informado pelo Profissional";
-    return "Aguardando Pagamento";
+    return "Aguardando Confirmação de Pagamento";
   };
 
   const atualizarStatus = async (coluna, valor) => {
@@ -149,7 +166,6 @@ export default function DetalhesAgendamento() {
     }
   };
 
-  // --- FUNÇÃO PARA IR PARA INTERCORRÊNCIA ---
   const abrirIntercorrencia = () => {
     router.push({
       pathname: '/criar_intercorrencia',
@@ -158,154 +174,397 @@ export default function DetalhesAgendamento() {
         aberto_por: agendamento.cliente?.nome_usuario || 'Cliente',
         contra_quem: agendamento.profissional?.usuario?.nome_usuario || 'Profissional',
         nome_servico: agendamento.servico?.nome_servico,
-        tipo_usuario: 'cliente' // Identifica que quem está abrindo é o cliente
+        tipo_usuario: 'cliente'
       }
     });
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#C5005E" /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={VERDE_VIVO} /></View>;
 
   const statusAtend = getStatusAtendimento();
   const pagamentoConcluido = agendamento.pagamento_cliente && agendamento.pagamento_profissional;
 
+  // --- TELA DE AVALIAÇÃO ---
   if (mostrarAvaliacao && !avaliadoLocal) {
     return (
-      <View style={styles.container}>
-        <View style={styles.headerModal}>
-           <TouchableOpacity onPress={() => setMostrarAvaliacao(false)}><Ionicons name="arrow-back" size={30} color="black" /></TouchableOpacity>
-           <Text style={styles.headerTitle}>Avaliar Procedimento</Text>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => setMostrarAvaliacao(false)}>
+            <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.evalContainer}>
-          <Text style={styles.evalText}>Como foi o atendimento com {agendamento.profissional?.usuario?.nome_usuario}?</Text>
+          <Text style={styles.titleCentred}>Avaliar Procedimento</Text>
+          <Text style={styles.evalText}>Como foi seu atendimento com <Text style={{fontWeight: '700', color: PETROLEO}}>{agendamento.profissional?.usuario?.nome_usuario}</Text>?</Text>
+          
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity key={star} onPress={() => setNota(star)}>
-                <Ionicons name={nota >= star ? "star" : "star-outline"} size={50} color="#FFD700" />
+              <TouchableOpacity key={star} onPress={() => setNota(star)} style={{ marginHorizontal: 6 }}>
+                <Ionicons name={nota >= star ? "star" : "star-outline"} size={44} color={GOLD} />
               </TouchableOpacity>
             ))}
           </View>
+          
           <TouchableOpacity style={styles.btnConfirmar} onPress={enviarAvaliacao} disabled={enviandoAvaliacao}>
-            {enviandoAvaliacao ? <ActivityIndicator color="#000" /> : <Text style={styles.btnText}>Confirmar e Finalizar</Text>}
+            {enviandoAvaliacao ? <ActivityIndicator color={WHITE} /> : <Text style={styles.btnText}>Confirmar e Finalizar</Text>}
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
+  // --- TELA SUCESSO FINALIZADO ---
   if (avaliadoLocal) {
     return (
-      <View style={[styles.container, styles.center]}>
-         <Ionicons name="checkmark-circle-outline" size={120} color="#32CD32" />
+      <SafeAreaView style={[styles.container, styles.center]}>
+         <Ionicons name="checkmark-circle-outline" size={100} color={VERDE_VIVO} />
          <Text style={styles.successText}>Atendimento Finalizado!</Text>
          <TouchableOpacity style={styles.btnVoltar} onPress={() => router.replace('/cliente/dashboard')}>
             <Text style={styles.btnText}>Voltar ao Início</Text>
          </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={35} color="red" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>{agendamento.servico?.nome_servico}</Text>
-      </View>
-
-      <View style={styles.infoSection}>
-        <Text style={styles.infoText}>Profissional: {agendamento.profissional?.usuario?.nome_usuario}</Text>
-        <Text style={styles.infoText}>Horário Marcado: {agendamento.hora_agendamento}</Text>
-      </View>
-
-      <View style={styles.statusSection}>
-        <Text style={styles.sectionTitle}>Status Do Atendimento</Text>
-        <View style={styles.statusRow}>
-           <Text style={styles.statusLabel}>Sua confirmação: {agendamento.presenca_cliente ? "Confirmado 🟢" : "Pendente 🟡"}</Text>
-           <Text style={styles.statusLabel}>Profissional: {agendamento.presenca_profissional ? "Confirmado 🟢" : "Pendente 🟡"}</Text>
-        </View>
-        <Text style={[styles.mainStatus, { color: statusAtend.cor }]}>{statusAtend.icon} {statusAtend.texto}</Text>
-      </View>
-
-      <View style={styles.actions}>
-        {!agendamento.presenca_cliente ? (
-          <TouchableOpacity style={styles.btnConfirmar} onPress={() => atualizarStatus('presenca_cliente', true)}>
-            <Text style={styles.btnText}>Confirmar Presença</Text>
-          </TouchableOpacity>
-        ) : !agendamento.finalizado_cliente ? (
-          <TouchableOpacity 
-            style={styles.btnConfirmar} 
-            onPress={() => {
-              if(!pagamentoConcluido) {
-                  Alert.alert("Aviso", "Confirme o pagamento antes de finalizar.");
-              } else {
-                  setMostrarAvaliacao(true);
-              }
-            }}
-          >
-            <Text style={styles.btnText}>Marcar como Finalizado</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      <View style={styles.statusSection}>
-        <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>Pagamento</Text>
-        <Text style={styles.statusLabel}>{getStatusPagamento()}</Text>
-        {!agendamento.pagamento_cliente && (
-          <TouchableOpacity style={styles.btnConfirmar} onPress={() => atualizarStatus('pagamento_cliente', true)}>
-            <Text style={styles.btnText}>Informar Pagamento Efetuado</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* --- SEÇÃO DE INTERCORRÊNCIA --- */}
-      <View style={styles.intercorrenciaSection}>
-        <View style={styles.divider} />
-        <TouchableOpacity style={styles.btnIntercorrencia} onPress={abrirIntercorrencia}>
-          <Ionicons name="warning-outline" size={24} color="black" />
-          <Text style={styles.btnIntercorrenciaText}>Tive um problema / Abrir Intercorrência</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* TOPO: VOLTAR */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color={PETROLEO} />
+          <Text style={styles.backButtonText}>Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.helpText}>Use este botão caso o atendimento não tenha ocorrido como esperado ou haja disputa de valores.</Text>
-      </View>
-      <View style={{height: 50}} />
-    </ScrollView>
+
+        {/* HEADER DO DETALHE */}
+        <Text style={styles.title}>{agendamento.servico?.nome_servico}</Text>
+        
+        {/* CARD INFORMATIVO PRINCIPAL */}
+        <View style={styles.cardDetails}>
+          <View style={styles.infoRow}>
+            <Ionicons name="person-outline" size={18} color={VERDE_VIVO} />
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Profissional</Text>
+              <Text style={styles.infoValue}>{agendamento.profissional?.usuario?.nome_usuario}</Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="time-outline" size={18} color={VERDE_VIVO} />
+            <View style={styles.textContainer}>
+              <Text style={styles.infoLabel}>Horário Marcado</Text>
+              <Text style={styles.infoValue}>{agendamento.hora_agendamento}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* SECÇÃO STATUS DO ATENDIMENTO */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Status Do Atendimento</Text>
+          
+          <View style={styles.statusBox}>
+            <Text style={styles.statusIndicatorText}>
+              Sua confirmação: <Text style={agendamento.presenca_cliente ? styles.valueActive : styles.valuePending}>{agendamento.presenca_cliente ? "Confirmado" : "Pendente"}</Text>
+            </Text>
+            <Text style={[styles.statusIndicatorText, { marginTop: 4 }]}>
+              Profissional: <Text style={agendamento.presenca_profissional ? styles.valueActive : styles.valuePending}>{agendamento.presenca_profissional ? "Confirmado" : "Pendente"}</Text>
+            </Text>
+          </View>
+
+          {/* BADGE CENTRAL DE STATUS */}
+          <View style={[styles.mainStatusBadge, { backgroundColor: statusAtend.bg }]}>
+            <Ionicons name={statusAtend.icon} size={18} color={statusAtend.cor} />
+            <Text style={[styles.mainStatusText, { color: statusAtend.cor }]}>{statusAtend.texto}</Text>
+          </View>
+        </View>
+
+        {/* BOTÕES DE AÇÃO DO ATENDIMENTO */}
+        <View style={styles.actionsContainer}>
+          {!agendamento.presenca_cliente ? (
+            <TouchableOpacity style={styles.btnConfirmar} onPress={() => atualizarStatus('presenca_cliente', true)}>
+              <Ionicons name="checkmark" size={20} color={WHITE} style={{ marginRight: 6 }} />
+              <Text style={styles.btnText}>Confirmar Presença</Text>
+            </TouchableOpacity>
+          ) : !agendamento.finalizado_cliente ? (
+            <TouchableOpacity 
+              style={styles.btnConfirmar} 
+              onPress={() => {
+                if(!pagamentoConcluido) {
+                    Alert.alert("Aviso", "Confirme o pagamento antes de finalizar.");
+                } else {
+                    setMostrarAvaliacao(true);
+                }
+              }}
+            >
+              <Ionicons name="lock-open-outline" size={20} color={WHITE} style={{ marginRight: 6 }} />
+              <Text style={styles.btnText}>Marcar como Finalizado</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* SECÇÃO PAGAMENTO */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.divider} />
+          <Text style={styles.sectionTitle}>Pagamento</Text>
+          <View style={styles.paymentBadge}>
+            <Ionicons name="card-outline" size={16} color={PETROLEO} />
+            <Text style={styles.paymentStatusText}>{getStatusPagamento()}</Text>
+          </View>
+          
+          {!agendamento.pagamento_cliente && (
+            <TouchableOpacity style={[styles.btnConfirmar, { marginTop: 14 }]} onPress={() => atualizarStatus('pagamento_cliente', true)}>
+              <Text style={styles.btnText}>Informar Pagamento Efetuado</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* SECÇÃO DE INTERCORRÊNCIA */}
+        <View style={styles.intercorrenciaSection}>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.btnIntercorrencia} onPress={abrirIntercorrencia}>
+            <Ionicons name="warning-outline" size={20} color={WHITE} />
+            <Text style={styles.btnIntercorrenciaText}>Tive um problema / Abrir Intercorrência</Text>
+          </TouchableOpacity>
+          <Text style={styles.helpText}>Use este canal caso o atendimento não tenha ocorrido ou haja alguma quebra de termos.</Text>
+        </View>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#8C8C8C' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, paddingTop: 50, backgroundColor: '#D9D9D9' },
-  headerModal: { padding: 20, paddingTop: 50, backgroundColor: '#D9D9D9', alignItems: 'center', flexDirection: 'row' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 20 },
-  infoSection: { padding: 25, backgroundColor: '#7A7A7A' },
-  infoText: { fontSize: 18, color: '#000', marginBottom: 10, fontWeight: '500' },
-  statusSection: { padding: 20, alignItems: 'center' },
-  sectionTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15 },
-  statusRow: { width: '100%', marginBottom: 15 },
-  statusLabel: { fontSize: 18, marginBottom: 5 },
-  mainStatus: { fontSize: 20, fontWeight: '900', marginTop: 10 },
-  actions: { padding: 20, gap: 15 },
-  btnConfirmar: { backgroundColor: '#00FF00', padding: 20, borderRadius: 5, alignItems: 'center', borderWidth: 1 },
-  btnVoltar: { backgroundColor: '#FF9900', padding: 20, width: '80%', borderRadius: 5, alignItems: 'center' },
-  btnText: { fontSize: 18, fontWeight: 'bold', color: '#000' },
-  divider: { height: 2, backgroundColor: '#000', width: '100%', marginVertical: 20 },
-  evalContainer: { flex: 1, alignItems: 'center', padding: 30, justifyContent: 'center' },
-  evalText: { fontSize: 18, textAlign: 'center', marginBottom: 40 },
-  starsRow: { flexDirection: 'row', marginBottom: 50 },
-  successText: { fontSize: 22, fontWeight: 'bold', marginVertical: 20 },
-  
-  // Estilos novos para Intercorrência
-  intercorrenciaSection: { padding: 20, alignItems: 'center' },
-  btnIntercorrencia: { 
+  container: { 
+    flex: 1, 
+    backgroundColor: CREAM 
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: CREAM 
+  },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingTop: 20,
+    paddingBottom: 40 
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 4,
+  },
+  backButtonText: {
+    color: PETROLEO,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5,
+    marginBottom: 20
+  },
+  titleCentred: {
+    fontSize: 24, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+    marginBottom: 10
+  },
+  cardDetails: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    shadowColor: PETROLEO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 24
+  },
+  infoRow: { 
     flexDirection: 'row', 
-    backgroundColor: '#FF4444', 
-    padding: 15, 
-    borderRadius: 5, 
     alignItems: 'center', 
-    borderWidth: 1, 
+    marginBottom: 16,
+    gap: 12
+  },
+  textContainer: {
+    flex: 1
+  },
+  infoLabel: { 
+    fontSize: 11, 
+    color: TEXT_MID,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600'
+  },
+  infoValue: { 
+    fontSize: 16,
+    color: PETROLEO,
+    fontWeight: '600',
+    marginTop: 1
+  },
+  sectionContainer: {
+    marginBottom: 20
+  },
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: PETROLEO, 
+    marginBottom: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase'
+  },
+  statusBox: {
+    backgroundColor: WHITE,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    marginBottom: 12
+  },
+  statusIndicatorText: {
+    fontSize: 14,
+    color: PETROLEO,
+    fontWeight: '500'
+  },
+  valueActive: {
+    color: VERDE_VIVO,
+    fontWeight: '700'
+  },
+  valuePending: {
+    color: GOLD,
+    fontWeight: '700'
+  },
+  mainStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    gap: 6,
+  },
+  mainStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3
+  },
+  actionsContainer: {
+    marginVertical: 10
+  },
+  btnConfirmar: { 
+    backgroundColor: VERDE_VIVO, 
+    paddingVertical: 14, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: VERDE_VIVO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  btnVoltar: { 
+    backgroundColor: PETROLEO, 
+    paddingVertical: 14, 
+    width: '70%', 
+    borderRadius: 12, 
+    alignItems: 'center',
+    marginTop: 10
+  },
+  btnText: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: WHITE,
+    letterSpacing: 0.3
+  },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: WHITE,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    gap: 8,
+    alignSelf: 'flex-start'
+  },
+  paymentStatusText: {
+    fontSize: 14,
+    color: PETROLEO,
+    fontWeight: '600'
+  },
+  divider: { 
+    height: 1, 
+    backgroundColor: BORDER, 
     width: '100%', 
+    marginVertical: 20 
+  },
+  evalContainer: { 
+    flex: 1, 
+    alignItems: 'center', 
+    paddingHorizontal: 24, 
     justifyContent: 'center' 
   },
-  btnIntercorrenciaText: { fontSize: 16, fontWeight: 'bold', color: '#000', marginLeft: 10 },
-  helpText: { fontSize: 12, color: '#333', textAlign: 'center', marginTop: 10, fontStyle: 'italic' }
+  evalText: { 
+    fontSize: 15, 
+    color: TEXT_MID, 
+    textAlign: 'center', 
+    marginBottom: 32,
+    lineHeight: 22
+  },
+  starsRow: { 
+    flexDirection: 'row', 
+    marginBottom: 40 
+  },
+  successText: { 
+    fontSize: 22, 
+    fontWeight: '700', 
+    color: PETROLEO,
+    marginTop: 16,
+    marginBottom: 12
+  },
+  intercorrenciaSection: { 
+    alignItems: 'center',
+    marginTop: 10
+  },
+  btnIntercorrencia: { 
+    flexDirection: 'row', 
+    backgroundColor: RED, 
+    paddingVertical: 14, 
+    paddingHorizontal: 16,
+    borderRadius: 12, 
+    alignItems: 'center', 
+    width: '100%', 
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: RED,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  btnIntercorrenciaText: { 
+    fontSize: 15, 
+    fontWeight: '600', 
+    color: WHITE 
+  },
+  helpText: { 
+    fontSize: 12, 
+    color: TEXT_MID, 
+    textAlign: 'center', 
+    marginTop: 10, 
+    lineHeight: 18,
+    paddingHorizontal: 10
+  }
 });
